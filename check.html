@@ -51,7 +51,12 @@
 <button id="btnPlain" class="alt">B 「てすと」と読む（cancelなし）</button>
 <button id="btnCancel">C 「てすと」と読む（cancelあり＝本番と同じ）</button>
 
-<h2>3. 結果ログ</h2>
+<h2>3. どのイベントなら鳴るか</h2>
+<button id="btnPointer" class="alt">D pointerdown で読む（本番と同じ）</button>
+<button id="btnClick" class="alt">E click で読む</button>
+<button id="btnTouchend" class="alt">F touchend で読む</button>
+
+<h2>4. 結果ログ</h2>
 <div id="log">（まだ何も押していません）</div>
 
 <script>
@@ -117,6 +122,11 @@ function speakTest(useCancel, tag) {
 
 document.getElementById('btnPlain').addEventListener('click', () => speakTest(false, 'B'));
 document.getElementById('btnCancel').addEventListener('click', () => speakTest(true, 'C'));
+
+/* ── D/E/F: どの操作イベントなら発話が通るか ─── */
+document.getElementById('btnPointer').addEventListener('pointerdown', () => speakTest(true, 'D(pointerdown)'));
+document.getElementById('btnClick').addEventListener('click', () => speakTest(true, 'E(click)'));
+document.getElementById('btnTouchend').addEventListener('touchend', () => speakTest(true, 'F(touchend)'));
 </script>
 
 </body>
