@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ことばずかん">
+<meta name="theme-color" content="#FFFCF5">
+<title>ことばずかん</title>
+<style>
+  :root {
+    --bg: #FFFCF5;
+    --tabbar: #F6F1E6;
+    --label: #6B5F52;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ── 単語グリッド ───────────────────────── */
+  #grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 2vmin;
+    padding: 2vmin;
+    min-height: 0;
+  }
+
+  /* 縦向きでは 2×3 に組み替える（子どもが iPad を回すため） */
+  @media (orientation: portrait) {
+    #grid {
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+    }
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1vmin;
+    min-width: 150px;
+    min-height: 150px;
+    border: none;
+    border-radius: 4vmin;
+    background: var(--card);
+    font-family: inherit;
+    cursor: pointer;
+    /* 押した瞬間の跳ねを中心から出す */
+    transform-origin: center;
+  }
+
+  .card .emoji {
+    font-size: min(18vmin, 22vh);
+    line-height: 1.1;
+    /* 絵文字を Apple 純正で出す（他フォントに落ちると絵柄が変わるため） */
+    font-family: "Apple Color Emoji", sans-serif;
+  }
+
+  .card .name {
+    font-size: min(4vmin, 5vh);
+    font-weight: 600;
+    color: var(--label);
+    letter-spacing: 0.05em;
+  }
+
+  .card.pop {
+    animation: pop 420ms ease-out;
+  }
+
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── カテゴリタブ ───────────────────────── */
+  #tabs {
+    display: flex;
+    gap: 2vmin;
+    padding: 1.5vmin 2vmin;
+    background: var(--tabbar);
+  }
+
+  .tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5vmin;
+    min-height: 90px;
+    border: none;
+    border-radius: 3vmin;
+    background: #FFFFFF;
+    font-family: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
+  }
+
+  .tab .emoji {
+    font-size: min(7vmin, 9vh);
+    line-height: 1;
+    font-family: "Apple Color Emoji", sans-serif;
+  }
+
+  .tab .name {
+    font-size: min(3.4vmin, 4.2vh);
+    font-weight: 600;
+    color: var(--label);
+  }
+
+  .tab.active {
+    opacity: 1;
+    background: var(--card);
+    transform: translateY(-0.6vmin);
+  }
+</style>
+</head>
+<body>
+
+<main id="grid"></main>
+<nav id="tabs"></nav>
+
+<script>
+/* ──────────────────────────────────────────
+   単語データ
+   増やすときは { e: 絵文字, n: "よみ" } を1行足す。
+   1カテゴリ6語で1画面ぴったりになる。
+   ────────────────────────────────────────── */
+const CATEGORIES = [
+  {
+    id: 'animal',
+    tabEmoji: '🐶',
+    tabName: 'どうぶつ',
+    color: '#FDEBE3',
+    words: [
+      { e: '🐶', n: 'いぬ' },
+      { e: '🐱', n: 'ねこ' },
+      { e: '🐘', n: 'ぞう' },
+      { e: '🦁', n: 'らいおん' },
+      { e: '🐰', n: 'うさぎ' },
+      { e: '🐟', n: 'さかな' },
+    ],
+  },
+  {
+    id: 'food',
+    tabEmoji: '🍎',
+    tabName: 'たべもの',
+    color: '#FBF0D9',
+    words: [
+      { e: '🍎', n: 'りんご' },
+      { e: '🍌', n: 'ばなな' },
+      { e: '🍞', n: 'ぱん' },
+      { e: '🍚', n: 'ごはん' },
+      { e: '🍓', n: 'いちご' },
+      { e: '🥛', n: 'ぎゅうにゅう' },
+    ],
+  },
+  {
+    id: 'vehicle',
+    tabEmoji: '🚗',
+    tabName: 'のりもの',
+    color: '#E4F0F4',
+    words: [
+      { e: '🚗', n: 'くるま' },
+      { e: '🚌', n: 'ばす' },
+      { e: '🚃', n: 'でんしゃ' },
+      { e: '🚒', n: 'しょうぼうしゃ' },
+      { e: '✈️', n: 'ひこうき' },
+      { e: '🚢', n: 'ふね' },
+    ],
+  },
+];
+
+const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
+
+/* ── 音声 ─────────────────────────────── */
+let jaVoice = null;
+
+function pickVoice() {
+  const voices = speechSynthesis.getVoices();
+  jaVoice = voices.find(v => v.lang === 'ja-JP') || voices.find(v => v.lang.startsWith('ja')) || null;
+}
+pickVoice();
+speechSynthesis.onvoiceschanged = pickVoice;
+
+function speak(text) {
+  // 連打されても音が積み上がらないよう、直前の発話を捨てて最新だけ読む
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP';
+  u.rate = SPEECH_RATE;
+  if (jaVoice) u.voice = jaVoice;
+  speechSynthesis.speak(u);
+}
+
+/* ── 描画 ─────────────────────────────── */
+const gridEl = document.getElementById('grid');
+const tabsEl = document.getElementById('tabs');
+
+function renderGrid(category) {
+  gridEl.innerHTML = '';
+  for (const word of category.words) {
+    const card = document.createElement('button');
+    card.className = 'card';
+    card.style.setProperty('--card', category.color);
+
+    const emoji = document.createElement('span');
+    emoji.className = 'emoji';
+    emoji.textContent = word.e;
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = word.n;
+
+    card.append(emoji, name);
+
+    card.addEventListener('pointerdown', () => {
+      speak(word.n);
+      card.classList.remove('pop');
+      void card.offsetWidth; // 連打でもアニメを頭から出し直す
+      card.classList.add('pop');
+    });
+
+    gridEl.append(card);
+  }
+}
+
+function selectCategory(index) {
+  const category = CATEGORIES[index];
+  renderGrid(category);
+  [...tabsEl.children].forEach((tab, i) => {
+    tab.classList.toggle('active', i === index);
+    tab.style.setProperty('--card', CATEGORIES[i].color);
+  });
+}
+
+function renderTabs() {
+  CATEGORIES.forEach((category, i) => {
+    const tab = document.createElement('button');
+    tab.className = 'tab';
+
+    const emoji = document.createElement('span');
+    emoji.className = 'emoji';
+    emoji.textContent = category.tabEmoji;
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = category.tabName;
+
+    tab.append(emoji, name);
+    tab.addEventListener('pointerdown', () => selectCategory(i));
+    tabsEl.append(tab);
+  });
+}
+
+renderTabs();
+selectCategory(0);
+</script>
+
+</body>
+</html>
