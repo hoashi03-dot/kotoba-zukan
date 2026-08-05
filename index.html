@@ -212,6 +212,8 @@ function speak(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'ja-JP';
   u.rate = SPEECH_RATE;
+  // 音声リストは読み込み後に差し替わることがあるため、発話のたびに取り直す
+  pickVoice();
   if (jaVoice) u.voice = jaVoice;
   speechSynthesis.speak(u);
 }
@@ -237,12 +239,16 @@ function renderGrid(category) {
 
     card.append(emoji, name);
 
+    // 見た目の反応は指が触れた瞬間に返す（2歳児には即時性が要る）
     card.addEventListener('pointerdown', () => {
-      speak(word.n);
       card.classList.remove('pop');
       void card.offsetWidth; // 連打でもアニメを頭から出し直す
       card.classList.add('pop');
     });
+
+    // 発話は click に紐づける。iOS はページ最初の発話を click 系の操作でしか
+    // 解禁せず、pointerdown だけだと speak() がエラーも出さず無視され続ける。
+    card.addEventListener('click', () => speak(word.n));
 
     gridEl.append(card);
   }
