@@ -227,7 +227,10 @@ function speak(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'ja-JP';
   u.rate = SPEECH_RATE;
-  if (jaVoice) u.voice = jaVoice;
+  // 検証: 使い回しをやめ、発話のたびに現在の音声リストから取り直す
+  const fresh = speechSynthesis.getVoices();
+  const v = fresh.find(x => x.lang === 'ja-JP') || fresh.find(x => x.lang && x.lang.startsWith('ja'));
+  if (v) u.voice = v;
   dbg('  voice=' + (u.voice ? u.voice.name : '既定') + ' rate=' + u.rate +
       ' voices総数=' + speechSynthesis.getVoices().length);
   u.onstart = () => dbg('  onstart（発声開始）');
