@@ -140,7 +140,12 @@
 </head>
 <body>
 
-<div id="dbg" style="position:fixed;top:0;left:0;right:0;max-height:38vh;overflow:auto;z-index:99;background:rgba(0,0,0,.82);color:#0f0;font:12px ui-monospace,monospace;white-space:pre-wrap;padding:6px">診断版：カードを1回タップしてください</div>
+<div id="dbg" style="position:fixed;top:0;left:0;right:0;max-height:38vh;overflow:auto;z-index:99;background:rgba(0,0,0,.82);color:#0f0;font:12px ui-monospace,monospace;white-space:pre-wrap;padding:6px">診断版：まず T1→T2→T3 を押し、そのあとカードをタップしてください</div>
+<div style="position:fixed;top:38vh;left:0;right:0;z-index:99;display:flex;gap:4px;padding:4px;background:rgba(0,0,0,.82)">
+  <button id="t1" style="flex:1;padding:14px;font-size:15px;border:0;border-radius:8px;background:#2F6FEB;color:#fff">T1 てすと<br>click</button>
+  <button id="t2" style="flex:1;padding:14px;font-size:15px;border:0;border-radius:8px;background:#1F9D55;color:#fff">T2 ぞう<br>click</button>
+  <button id="t3" style="flex:1;padding:14px;font-size:15px;border:0;border-radius:8px;background:#B5551F;color:#fff">T3 てすと<br>pointerdown</button>
+</div>
 
 <main id="grid"></main>
 <nav id="tabs"></nav>
@@ -240,6 +245,25 @@ function speak(text) {
   setTimeout(() => dbg('  0.5秒後 speaking=' + speechSynthesis.speaking +
       ' pending=' + speechSynthesis.pending), 500);
 }
+
+/* ── 検証ボタン: 診断ページと同一の呼び出し ─── */
+function probe(text, tag) {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP';
+  u.rate = 0.85;
+  const vs = speechSynthesis.getVoices();
+  const v = vs.find(x => x.lang === 'ja-JP') || vs.find(x => x.lang && x.lang.startsWith('ja'));
+  if (v) u.voice = v;
+  dbg(tag + ': speak要求 voice=' + (v ? v.name : '既定'));
+  u.onstart = () => dbg(tag + ': onstart');
+  u.onend   = () => dbg(tag + ': onend');
+  u.onerror = (e) => dbg(tag + ': onerror=' + (e.error || '不明'));
+  speechSynthesis.speak(u);
+}
+document.getElementById('t1').addEventListener('click', () => probe('てすと', 'T1'));
+document.getElementById('t2').addEventListener('click', () => probe('ぞう', 'T2'));
+document.getElementById('t3').addEventListener('pointerdown', () => probe('てすと', 'T3'));
 
 /* ── 描画 ─────────────────────────────── */
 const gridEl = document.getElementById('grid');
