@@ -11,8 +11,8 @@
 <title>ことばずかん</title>
 <style>
   :root {
-    --bg: #FFFCF5;
-    --tabbar: #F6F1E6;
+    --bg: #F3EDE1;
+    --tabbar: #E9E1D2;
     --label: #6B5F52;
   }
 
@@ -21,12 +21,14 @@
   html, body {
     height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
     background: var(--bg);
     font-family: "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN", sans-serif;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+    touch-action: none;
   }
 
   body {
@@ -41,8 +43,8 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(2, 1fr);
-    gap: 2vmin;
-    padding: 2vmin;
+    gap: 2.6vmin;
+    padding: 2.6vmin;
     min-height: 0;
   }
 
@@ -55,37 +57,46 @@
   }
 
   .card {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1vmin;
-    min-width: 150px;
-    min-height: 150px;
+    gap: 0.5vmin;
+    min-width: min(150px, 40vw);
+    min-height: min(150px, 26vh);
+    padding: 1vmin;
     border: none;
     border-radius: 4vmin;
-    background: var(--card);
+    /* 背景と紛れないよう、色ではなく影で「押せる面」の輪郭を出す */
+    background: var(--card, #F7F1E6);
+    box-shadow: 0 0.5vmin 1.4vmin rgba(107, 95, 82, 0.16);
     font-family: inherit;
+    -webkit-user-drag: none;
     cursor: pointer;
-    /* 押した瞬間の跳ねを中心から出す */
     transform-origin: center;
   }
 
   .card .emoji {
-    font-size: min(18vmin, 22vh);
-    line-height: 1.1;
+    font-size: min(26vmin, 30vh);
+    line-height: 1.05;
     /* 絵文字を Apple 純正で出す（他フォントに落ちると絵柄が変わるため） */
     font-family: "Apple Color Emoji", sans-serif;
+    pointer-events: none;
   }
 
   .card .name {
-    font-size: min(4vmin, 5vh);
+    font-size: min(4.4vmin, 5vh);
     font-weight: 600;
     color: var(--label);
     letter-spacing: 0.05em;
+    white-space: nowrap;
+    pointer-events: none;
   }
 
+  /* 押した瞬間の跳ね。拡大時に隣のカードへ潜り込まないよう前面へ出す */
   .card.pop {
+    z-index: 1;
     animation: pop 420ms ease-out;
   }
 
@@ -95,11 +106,33 @@
     100% { transform: scale(1); }
   }
 
+  /* 喋っている間だけ絵をゆっくり脈打たせ、音と絵を結び付ける */
+  .card.talking .emoji {
+    animation: talk 1.1s ease-in-out infinite;
+  }
+
+  @keyframes talk {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+  }
+
+  /* カテゴリ切替時に6枚が順に現れる（自分が押した結果だと分かるように） */
+  .card.enter {
+    animation: enter 320ms ease-out backwards;
+  }
+
+  @keyframes enter {
+    from { opacity: 0; transform: scale(0.88); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
   /* ── カテゴリタブ ───────────────────────── */
   #tabs {
     display: flex;
     gap: 2vmin;
-    padding: 1.5vmin 2vmin;
+    padding: 1.6vmin 2.6vmin;
+    /* 下端のホームバー領域から物理的に離す（こすって離脱するのを減らす） */
+    margin-bottom: 20px;
     background: var(--tabbar);
   }
 
@@ -109,32 +142,39 @@
     align-items: center;
     justify-content: center;
     gap: 1.5vmin;
-    min-height: 90px;
+    min-height: 88px;
     border: none;
-    border-radius: 3vmin;
+    /* カードとは形で区別する（丸みの浅い横長の帯） */
+    border-radius: 1.6vmin;
     background: #FFFFFF;
+    box-shadow: 0 0.4vmin 1vmin rgba(107, 95, 82, 0.14);
     font-family: inherit;
-    opacity: 0.55;
+    -webkit-user-drag: none;
     cursor: pointer;
-    transition: opacity 150ms ease-out, transform 150ms ease-out;
+    transition: transform 150ms ease-out, background-color 150ms ease-out;
   }
 
   .tab .emoji {
     font-size: min(7vmin, 9vh);
     line-height: 1;
     font-family: "Apple Color Emoji", sans-serif;
+    pointer-events: none;
   }
 
+  /* タブの文字はカードより控えめにして「主役ではない」ことを形で示す */
   .tab .name {
-    font-size: min(3.4vmin, 4.2vh);
+    font-size: min(3.2vmin, 4vh);
     font-weight: 600;
     color: var(--label);
+    opacity: 0.85;
+    pointer-events: none;
   }
 
+  /* 選択状態は透明度で表さない（2〜3歳児は薄い＝壊れている と受け取るため） */
   .tab.active {
-    opacity: 1;
-    background: var(--card);
-    transform: translateY(-0.6vmin);
+    background: var(--card, #F7F1E6);
+    box-shadow: none;
+    transform: translateY(0.6vmin);
   }
 </style>
 </head>
@@ -147,46 +187,52 @@
 /* ──────────────────────────────────────────
    単語データ
    増やすときは { e: 絵文字, n: "よみ" } を1行足す。
-   1カテゴリ6語で1画面ぴったりになる。
+   s を足すと読み上げだけ別表記にできる（例 s: 'バス'）。
+   1カテゴリ6語で1画面ぴったり。7語目を足しても画面には6枚しか出ない。
+
+   絵文字を選ぶときの決まりごと:
+   ・白や半透明が主体の絵は使わない（背景に溶けて2歳児には見えない）
+   ・同じカテゴリ内で同系色・似た形を並べない
+   ・タブの絵文字は、そのカテゴリの単語と重複させない
    ────────────────────────────────────────── */
 const CATEGORIES = [
   {
     id: 'animal',
-    tabEmoji: '🐶',
+    tabEmoji: '🐻',
     tabName: 'どうぶつ',
-    color: '#FDEBE3',
+    color: '#F7D9CB',
     words: [
       { e: '🐶', n: 'いぬ' },
       { e: '🐱', n: 'ねこ' },
       { e: '🐘', n: 'ぞう' },
-      { e: '🦁', n: 'らいおん' },
+      { e: '🦁', n: 'らいおん', s: 'ライオン' },
       { e: '🐰', n: 'うさぎ' },
       { e: '🐟', n: 'さかな' },
     ],
   },
   {
     id: 'food',
-    tabEmoji: '🍎',
+    tabEmoji: '🍰',
     tabName: 'たべもの',
-    color: '#FBF0D9',
+    color: '#F6E4B8',
     words: [
       { e: '🍎', n: 'りんご' },
-      { e: '🍌', n: 'ばなな' },
-      { e: '🍞', n: 'ぱん' },
-      { e: '🍚', n: 'ごはん' },
+      { e: '🍌', n: 'ばなな', s: 'バナナ' },
+      { e: '🍞', n: 'ぱん', s: 'パン' },
+      { e: '🍙', n: 'おにぎり' },
       { e: '🍓', n: 'いちご' },
-      { e: '🥛', n: 'ぎゅうにゅう' },
+      { e: '🍇', n: 'ぶどう' },
     ],
   },
   {
     id: 'vehicle',
-    tabEmoji: '🚗',
+    tabEmoji: '🚁',
     tabName: 'のりもの',
-    color: '#E4F0F4',
+    color: '#CDE4EC',
     words: [
-      { e: '🚗', n: 'くるま' },
-      { e: '🚌', n: 'ばす' },
-      { e: '🚃', n: 'でんしゃ' },
+      { e: '🚙', n: 'くるま' },
+      { e: '🚌', n: 'ばす', s: 'バス' },
+      { e: '🚆', n: 'でんしゃ' },
       { e: '🚒', n: 'しょうぼうしゃ' },
       { e: '✈️', n: 'ひこうき' },
       { e: '🚢', n: 'ふね' },
@@ -196,67 +242,168 @@ const CATEGORIES = [
 
 const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
 
-/* ── 音声 ─────────────────────────────── */
+/* ── 音声 ───────────────────────────────
+   音声合成が無い端末でも、絵とアニメだけは必ず動くようにする。
+   ここで例外を投げると描画処理まで止まり、白画面になるため全て握りつぶす。
+   ────────────────────────────────────── */
+const synth = window.speechSynthesis || null;
 let jaVoice = null;
+let currentUtterance = null;  // 発話中に GC されて音が切れるのを防ぐ
+let speakingCard = null;
+let unlocked = false;         // iOS: このページで発話が一度でも通ったか
 
 function pickVoice() {
-  const voices = speechSynthesis.getVoices();
-  jaVoice = voices.find(v => v.lang === 'ja-JP') || voices.find(v => v.lang.startsWith('ja')) || null;
+  if (!synth) return;
+  try {
+    const voices = synth.getVoices();
+    jaVoice = voices.find(v => v.lang === 'ja-JP') ||
+              voices.find(v => v.lang && v.lang.startsWith('ja')) || null;
+  } catch (e) {
+    jaVoice = null;
+  }
 }
 pickVoice();
-speechSynthesis.onvoiceschanged = pickVoice;
+if (synth) synth.onvoiceschanged = pickVoice;
 
-function speak(text) {
-  // 連打されても音が積み上がらないよう、直前の発話を捨てて最新だけ読む
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ja-JP';
-  u.rate = SPEECH_RATE;
-  // 音声リストは読み込み後に差し替わることがあるため、発話のたびに取り直す
-  pickVoice();
-  if (jaVoice) u.voice = jaVoice;
-  speechSynthesis.speak(u);
+function speak(word, card) {
+  if (!synth) return;
+  try {
+    // 同じカードを連打されても、鳴っている間は無視して最後まで聞かせる
+    if (synth.speaking && speakingCard === card) return;
+    // 無条件の cancel は iOS で発話キューを壊すため、必要なときだけ
+    if (synth.speaking || synth.pending) synth.cancel();
+
+    const u = new SpeechSynthesisUtterance(word.s || word.n);
+    u.lang = 'ja-JP';
+    u.rate = SPEECH_RATE;
+    // 音声リストは読み込み後に差し替わることがあるため、発話のたびに取り直す
+    pickVoice();
+    if (jaVoice) u.voice = jaVoice;
+
+    const done = () => {
+      if (card) card.classList.remove('talking');
+      if (speakingCard === card) speakingCard = null;
+    };
+    u.onstart = () => {
+      unlocked = true;
+      if (card) card.classList.add('talking');
+    };
+    u.onend = done;
+    u.onerror = done;
+
+    currentUtterance = u;
+    speakingCard = card;
+    synth.speak(u);
+  } catch (e) {
+    /* 音が出なくてもアプリは動き続ける */
+  }
 }
 
-/* ── 描画 ─────────────────────────────── */
+/* 二重発火の抑止。解禁前は click での再試行を通したいので抑止しない */
+let lastCard = null;
+let lastAt = 0;
+function requestSpeak(word, card) {
+  const now = Date.now();
+  if (unlocked && card === lastCard && now - lastAt < 500) return;
+  lastCard = card;
+  lastAt = now;
+  speak(word, card);
+}
+
+/* 読み上げ中に離脱すると iOS の音声が固まるため、状態を戻しておく */
+function resetSpeech() {
+  if (!synth) return;
+  try { synth.cancel(); } catch (e) { /* noop */ }
+  if (speakingCard) speakingCard.classList.remove('talking');
+  speakingCard = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) resetSpeech();
+});
+window.addEventListener('pagehide', resetSpeech);
+
+/* ── カード ─────────────────────────────
+   カードは起動時に6枚だけ作り、以後は中身を差し替える。
+   作り直すと、押している最中にカードが消えて発話が失われる。
+   ────────────────────────────────────── */
 const gridEl = document.getElementById('grid');
 const tabsEl = document.getElementById('tabs');
+const cards = [];
+let armedCard = null; // いま指が触れているカード
 
-function renderGrid(category) {
-  gridEl.innerHTML = '';
-  for (const word of category.words) {
+function pop(card) {
+  card.classList.remove('pop');
+  void card.offsetWidth; // 連打でもアニメを頭から出し直す
+  card.classList.add('pop');
+}
+
+function buildCards() {
+  for (let i = 0; i < 6; i++) {
     const card = document.createElement('button');
     card.className = 'card';
-    card.style.setProperty('--card', category.color);
 
     const emoji = document.createElement('span');
     emoji.className = 'emoji';
-    emoji.textContent = word.e;
-
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = word.n;
-
     card.append(emoji, name);
 
     // 見た目の反応は指が触れた瞬間に返す（2歳児には即時性が要る）
-    card.addEventListener('pointerdown', () => {
-      card.classList.remove('pop');
-      void card.offsetWidth; // 連打でもアニメを頭から出し直す
-      card.classList.add('pop');
+    card.addEventListener('pointerdown', (e) => {
+      armedCard = card;
+      // 指がカードの外へずれても pointerup を受け取れるようにする
+      try { card.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      pop(card);
     });
 
-    // 発話は click に紐づける。iOS はページ最初の発話を click 系の操作でしか
-    // 解禁せず、pointerdown だけだと speak() がエラーも出さず無視され続ける。
-    card.addEventListener('click', () => speak(word.n));
+    // 発話は指を離したときに出す。pointerup なら指がずれても取りこぼさない。
+    card.addEventListener('pointerup', () => {
+      if (armedCard !== card) return;
+      armedCard = null;
+      requestSpeak(card._word, card);
+    });
 
+    card.addEventListener('pointercancel', () => { armedCard = null; });
+
+    // iOS はページ最初の発話を click 系の操作でしか解禁しない。
+    // まだ一度も鳴っていない間だけ、click で鳴らし直す。
+    card.addEventListener('click', () => {
+      if (!unlocked) requestSpeak(card._word, card);
+    });
+
+    cards.push(card);
     gridEl.append(card);
   }
 }
 
+function applyCategory(category) {
+  cards.forEach((card, i) => {
+    const word = category.words[i];
+    card._word = word;
+    card.style.setProperty('--card', category.color);
+    card.querySelector('.emoji').textContent = word.e;
+    card.querySelector('.name').textContent = word.n;
+
+    // 順に現れる演出。切替のたびに頭から流し直す
+    card.classList.remove('enter', 'talking');
+    void card.offsetWidth;
+    card.style.animationDelay = (i * 55) + 'ms';
+    card.classList.add('enter');
+  });
+}
+
+/* ── タブ ─────────────────────────────── */
+let currentIndex = -1;
+
 function selectCategory(index) {
+  if (index === currentIndex) return; // 連打で作り直さない
+  currentIndex = index;
+
+  // ここでは cancel しない。直後のカテゴリ名の発話が
+  // cancel を必要な場合だけ行うため、cancel の二重発行を避ける。
   const category = CATEGORIES[index];
-  renderGrid(category);
+  applyCategory(category);
+
   [...tabsEl.children].forEach((tab, i) => {
     tab.classList.toggle('active', i === index);
     tab.style.setProperty('--card', CATEGORIES[i].color);
@@ -277,11 +424,18 @@ function renderTabs() {
     name.textContent = category.tabName;
 
     tab.append(emoji, name);
-    tab.addEventListener('pointerdown', () => selectCategory(i));
+
+    // カードと同じく「押したら鳴る」を守る。押した瞬間ではなく離したときに確定。
+    tab.addEventListener('click', () => {
+      selectCategory(i);
+      requestSpeak({ n: category.tabName }, tab);
+    });
+
     tabsEl.append(tab);
   });
 }
 
+buildCards();
 renderTabs();
 selectCategory(0);
 </script>
