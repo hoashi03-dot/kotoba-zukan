@@ -7,12 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="ことばずかん">
-<meta name="theme-color" content="#FFFCF5">
+<meta name="theme-color" content="#F3EDE1">
 <title>ことばずかん</title>
 <style>
   :root {
     --bg: #F3EDE1;
-    --tabbar: #E9E1D2;
+    --bar: #E9E1D2;
     --label: #6B5F52;
   }
 
@@ -37,23 +37,93 @@
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
-  /* ── 単語グリッド ───────────────────────── */
+  /* ── モード切替（上）─────────────────────
+     左「ことば」右「かず」。子どもが自分で行き来できるよう
+     常に両方を同じ濃さで見せる。
+     ────────────────────────────────────── */
+  #modes {
+    display: flex;
+    gap: 2vmin;
+    padding: 1.4vmin 2.6vmin;
+    background: var(--bar);
+  }
+
+  .mode {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5vmin;
+    min-height: 72px;
+    border: none;
+    border-radius: 1.6vmin;
+    background: #FFFFFF;
+    box-shadow: 0 0.4vmin 1vmin rgba(107, 95, 82, 0.14);
+    font-family: inherit;
+    -webkit-user-drag: none;
+    cursor: pointer;
+    transition: transform 150ms ease-out, background-color 150ms ease-out;
+  }
+
+  .mode .emoji {
+    font-size: min(6vmin, 7.5vh);
+    line-height: 1;
+    font-family: "Apple Color Emoji", sans-serif;
+    pointer-events: none;
+  }
+
+  .mode .name {
+    font-size: min(3.6vmin, 4.4vh);
+    font-weight: 600;
+    color: var(--label);
+    pointer-events: none;
+  }
+
+  .mode.active {
+    background: var(--accent, #F7F1E6);
+    box-shadow: none;
+    transform: translateY(-0.6vmin);
+  }
+
+  /* ── カードのグリッド ───────────────────── */
   #grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
     gap: 2.6vmin;
     padding: 2.6vmin;
     min-height: 0;
   }
 
-  /* 縦向きでは 2×3 に組み替える（子どもが iPad を回すため） */
+  /* minmax(0, 1fr) にしないと、行が中身より小さくならず画面からはみ出す */
+
+  /* ことば: 6枚 */
+  #grid.n6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  /* かず: 10枚 */
+  #grid.n10 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 1.8vmin;
+    padding: 1.8vmin;
+  }
+
+  /* 縦向きに組み替える（子どもが iPad を回すため） */
   @media (orientation: portrait) {
-    #grid {
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(3, 1fr);
+    #grid.n6 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(3, minmax(0, 1fr));
     }
+    #grid.n10 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+    }
+    /* 縦向きは1枚あたりの高さが低いので、20個の丸が収まるよう縮める */
+    #grid.n10 .numeral { font-size: min(8vmin, 7vh); }
+    #grid.n10 .dots { gap: 0.7vmin; margin-top: 0.8vmin; }
+    #grid.n10 .dot { width: 2vmin; height: 2vmin; }
   }
 
   .card {
@@ -63,9 +133,9 @@
     align-items: center;
     justify-content: center;
     gap: 0.5vmin;
-    min-width: min(150px, 40vw);
-    min-height: min(150px, 26vh);
     padding: 1vmin;
+    min-height: 0;
+    overflow: hidden;
     border: none;
     border-radius: 4vmin;
     /* 背景と紛れないよう、色ではなく影で「押せる面」の輪郭を出す */
@@ -77,12 +147,14 @@
     transform-origin: center;
   }
 
+  .card > * { pointer-events: none; }
+
+  /* ことばカード */
   .card .emoji {
-    font-size: min(26vmin, 30vh);
+    font-size: min(22vmin, 26vh);
     line-height: 1.05;
     /* 絵文字を Apple 純正で出す（他フォントに落ちると絵柄が変わるため） */
     font-family: "Apple Color Emoji", sans-serif;
-    pointer-events: none;
   }
 
   .card .name {
@@ -91,11 +163,33 @@
     color: var(--label);
     letter-spacing: 0.05em;
     white-space: nowrap;
-    pointer-events: none;
   }
 
-  /* 押した瞬間の跳ね。拡大時に隣のカードへ潜り込まないよう前面へ出す */
-  .card.pop {
+  /* かずカード: 数字と、その数だけの丸 */
+  .card .numeral {
+    font-size: min(14vmin, 17vh);
+    font-weight: 700;
+    line-height: 1;
+    color: #5A4A3A;
+  }
+
+  .dots {
+    display: grid;
+    grid-template-columns: repeat(5, auto); /* 5個ずつ並べて量を掴みやすくする */
+    gap: 0.9vmin;
+    justify-content: center;
+    margin-top: 1.4vmin;
+  }
+
+  .dot {
+    width: 2.6vmin;
+    height: 2.6vmin;
+    border-radius: 50%;
+    background: rgba(90, 74, 58, 0.7);
+  }
+
+  /* 押した瞬間の跳ね。拡大時に隣へ潜り込まないよう前面へ出す */
+  .card.pop, .tab.pop, .mode.pop {
     z-index: 1;
     animation: pop 420ms ease-out;
   }
@@ -107,7 +201,8 @@
   }
 
   /* 喋っている間だけ絵をゆっくり脈打たせ、音と絵を結び付ける */
-  .card.talking .emoji {
+  .card.talking .emoji,
+  .card.talking .numeral {
     animation: talk 1.1s ease-in-out infinite;
   }
 
@@ -116,7 +211,7 @@
     50%      { transform: scale(1.06); }
   }
 
-  /* カテゴリ切替時に6枚が順に現れる（自分が押した結果だと分かるように） */
+  /* 切替時にカードが順に現れる（自分が押した結果だと分かるように） */
   .card.enter {
     animation: enter 320ms ease-out backwards;
   }
@@ -126,14 +221,14 @@
     to   { opacity: 1; transform: scale(1); }
   }
 
-  /* ── カテゴリタブ ───────────────────────── */
+  /* ── グループのタブ（下）───────────────── */
   #tabs {
     display: flex;
     gap: 2vmin;
     padding: 1.6vmin 2.6vmin;
     /* 下端のホームバー領域から物理的に離す（こすって離脱するのを減らす） */
     margin-bottom: 20px;
-    background: var(--tabbar);
+    background: var(--bar);
   }
 
   .tab {
@@ -154,11 +249,12 @@
     transition: transform 150ms ease-out, background-color 150ms ease-out;
   }
 
+  .tab > * { pointer-events: none; }
+
   .tab .emoji {
     font-size: min(7vmin, 9vh);
     line-height: 1;
     font-family: "Apple Color Emoji", sans-serif;
-    pointer-events: none;
   }
 
   /* タブの文字はカードより控えめにして「主役ではない」ことを形で示す */
@@ -167,7 +263,6 @@
     font-weight: 600;
     color: var(--label);
     opacity: 0.85;
-    pointer-events: none;
   }
 
   /* 選択状態は透明度で表さない（2〜3歳児は薄い＝壊れている と受け取るため） */
@@ -180,28 +275,26 @@
 </head>
 <body>
 
+<header id="modes"></header>
 <main id="grid"></main>
 <nav id="tabs"></nav>
 
 <script>
 /* ──────────────────────────────────────────
-   単語データ
-   増やすときは { e: 絵文字, n: "よみ" } を1行足す。
-   s を足すと読み上げだけ別表記にできる（例 s: 'バス'）。
-   1カテゴリ6語で1画面ぴったり。7語目を足しても画面には6枚しか出ない。
+   データ
+   ことば: { e: 絵文字, n: "よみ" }。s を足すと読み上げだけ別表記にできる。
+   かず  : { num: 数, s: "よみ" }。数字をそのまま読ませると
+           4を「し」、7を「しち」と読むことがあるため、かなを明示する。
 
    絵文字を選ぶときの決まりごと:
    ・白や半透明が主体の絵は使わない（背景に溶けて2歳児には見えない）
    ・同じカテゴリ内で同系色・似た形を並べない
-   ・タブの絵文字は、そのカテゴリの単語と重複させない
+   ・タブやモードの絵文字は、カードの絵と重複させない
    ────────────────────────────────────────── */
-const CATEGORIES = [
+const WORD_GROUPS = [
   {
-    id: 'animal',
-    tabEmoji: '🐻',
-    tabName: 'どうぶつ',
-    color: '#F7D9CB',
-    words: [
+    tabEmoji: '🐻', tabName: 'どうぶつ', color: '#F7D9CB',
+    items: [
       { e: '🐶', n: 'いぬ' },
       { e: '🐱', n: 'ねこ' },
       { e: '🐘', n: 'ぞう' },
@@ -211,11 +304,8 @@ const CATEGORIES = [
     ],
   },
   {
-    id: 'food',
-    tabEmoji: '🍰',
-    tabName: 'たべもの',
-    color: '#F6E4B8',
-    words: [
+    tabEmoji: '🍰', tabName: 'たべもの', color: '#F6E4B8',
+    items: [
       { e: '🍎', n: 'りんご' },
       { e: '🍌', n: 'ばなな', s: 'バナナ' },
       { e: '🍞', n: 'ぱん', s: 'パン' },
@@ -225,11 +315,8 @@ const CATEGORIES = [
     ],
   },
   {
-    id: 'vehicle',
-    tabEmoji: '🚁',
-    tabName: 'のりもの',
-    color: '#CDE4EC',
-    words: [
+    tabEmoji: '🚁', tabName: 'のりもの', color: '#CDE4EC',
+    items: [
       { e: '🚙', n: 'くるま' },
       { e: '🚌', n: 'ばす', s: 'バス' },
       { e: '🚆', n: 'でんしゃ' },
@@ -238,6 +325,28 @@ const CATEGORIES = [
       { e: '🚢', n: 'ふね' },
     ],
   },
+];
+
+const KANA = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう', 'じゅう'];
+
+// 1〜20 を10個ずつ2つのグループにする
+function numberItems(from, to) {
+  const items = [];
+  for (let n = from; n <= to; n++) {
+    const kana = n <= 10 ? KANA[n] : (n === 20 ? 'にじゅう' : 'じゅう' + KANA[n - 10]);
+    items.push({ num: n, s: kana });
+  }
+  return items;
+}
+
+const NUMBER_GROUPS = [
+  { tabEmoji: '☝️', tabName: '1から10',  tabSpeech: 'いちからじゅう',       color: '#D8E7D0', items: numberItems(1, 10) },
+  { tabEmoji: '✌️', tabName: '11から20', tabSpeech: 'じゅういちからにじゅう', color: '#E2DCF0', items: numberItems(11, 20) },
+];
+
+const MODES = [
+  { emoji: '🧸', name: 'ことば', accent: '#F7D9CB', groups: WORD_GROUPS },
+  { emoji: '🔢', name: 'かず',   accent: '#D8E7D0', groups: NUMBER_GROUPS },
 ];
 
 const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
@@ -249,7 +358,7 @@ const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取り�
 const synth = window.speechSynthesis || null;
 let jaVoice = null;
 let currentUtterance = null;  // 発話中に GC されて音が切れるのを防ぐ
-let speakingCard = null;
+let speakingEl = null;
 let unlocked = false;         // iOS: このページで発話が一度でも通ったか
 
 function pickVoice() {
@@ -265,15 +374,15 @@ function pickVoice() {
 pickVoice();
 if (synth) synth.onvoiceschanged = pickVoice;
 
-function speak(word, card) {
-  if (!synth) return;
+function speak(text, el) {
+  if (!synth || !text) return;
   try {
-    // 同じカードを連打されても、鳴っている間は無視して最後まで聞かせる
-    if (synth.speaking && speakingCard === card) return;
+    // 同じものを連打されても、鳴っている間は無視して最後まで聞かせる
+    if (synth.speaking && speakingEl === el) return;
     // 無条件の cancel は iOS で発話キューを壊すため、必要なときだけ
     if (synth.speaking || synth.pending) synth.cancel();
 
-    const u = new SpeechSynthesisUtterance(word.s || word.n);
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
     u.rate = SPEECH_RATE;
     // 音声リストは読み込み後に差し替わることがあるため、発話のたびに取り直す
@@ -281,18 +390,18 @@ function speak(word, card) {
     if (jaVoice) u.voice = jaVoice;
 
     const done = () => {
-      if (card) card.classList.remove('talking');
-      if (speakingCard === card) speakingCard = null;
+      if (el) el.classList.remove('talking');
+      if (speakingEl === el) speakingEl = null;
     };
     u.onstart = () => {
       unlocked = true;
-      if (card) card.classList.add('talking');
+      if (el) el.classList.add('talking');
     };
     u.onend = done;
     u.onerror = done;
 
     currentUtterance = u;
-    speakingCard = card;
+    speakingEl = el;
     synth.speak(u);
   } catch (e) {
     /* 音が出なくてもアプリは動き続ける */
@@ -300,144 +409,228 @@ function speak(word, card) {
 }
 
 /* 二重発火の抑止。解禁前は click での再試行を通したいので抑止しない */
-let lastCard = null;
+let lastEl = null;
 let lastAt = 0;
-function requestSpeak(word, card) {
+function requestSpeak(text, el) {
   const now = Date.now();
-  if (unlocked && card === lastCard && now - lastAt < 500) return;
-  lastCard = card;
+  if (unlocked && el === lastEl && now - lastAt < 500) return;
+  lastEl = el;
   lastAt = now;
-  speak(word, card);
+  speak(text, el);
 }
 
 /* 読み上げ中に離脱すると iOS の音声が固まるため、状態を戻しておく */
 function resetSpeech() {
   if (!synth) return;
   try { synth.cancel(); } catch (e) { /* noop */ }
-  if (speakingCard) speakingCard.classList.remove('talking');
-  speakingCard = null;
+  if (speakingEl) speakingEl.classList.remove('talking');
+  speakingEl = null;
 }
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) resetSpeech();
 });
 window.addEventListener('pagehide', resetSpeech);
 
+/* 読み上げる文字列。ことばは かな、かずは 数のよみ */
+function speechOf(item) {
+  return item.s || item.n || '';
+}
+
 /* ── カード ─────────────────────────────
-   カードは起動時に6枚だけ作り、以後は中身を差し替える。
-   作り直すと、押している最中にカードが消えて発話が失われる。
+   カードは枚数が変わるときだけ作り直す。同じモードの中では
+   中身を差し替えるだけにする（作り直すと、押している最中に
+   カードが消えて発話が失われる）。
    ────────────────────────────────────── */
+const modesEl = document.getElementById('modes');
 const gridEl = document.getElementById('grid');
 const tabsEl = document.getElementById('tabs');
 const cards = [];
 let armedCard = null; // いま指が触れているカード
 
-function pop(card) {
-  card.classList.remove('pop');
-  void card.offsetWidth; // 連打でもアニメを頭から出し直す
-  card.classList.add('pop');
+function pop(el) {
+  el.classList.remove('pop');
+  void el.offsetWidth; // 連打でもアニメを頭から出し直す
+  el.classList.add('pop');
 }
 
-function buildCards() {
-  for (let i = 0; i < 6; i++) {
-    const card = document.createElement('button');
-    card.className = 'card';
+function createCard() {
+  const card = document.createElement('button');
+  card.className = 'card';
 
-    const emoji = document.createElement('span');
-    emoji.className = 'emoji';
-    const name = document.createElement('span');
-    name.className = 'name';
-    card.append(emoji, name);
+  // 見た目の反応は指が触れた瞬間に返す（2歳児には即時性が要る）
+  card.addEventListener('pointerdown', (e) => {
+    armedCard = card;
+    // 指がカードの外へずれても pointerup を受け取れるようにする
+    try { card.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    pop(card);
+  });
 
-    // 見た目の反応は指が触れた瞬間に返す（2歳児には即時性が要る）
-    card.addEventListener('pointerdown', (e) => {
-      armedCard = card;
-      // 指がカードの外へずれても pointerup を受け取れるようにする
-      try { card.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
-      pop(card);
-    });
+  // 発話は指を離したときに出す。pointerup なら指がずれても取りこぼさない。
+  card.addEventListener('pointerup', () => {
+    if (armedCard !== card) return;
+    armedCard = null;
+    requestSpeak(speechOf(card._item), card);
+  });
 
-    // 発話は指を離したときに出す。pointerup なら指がずれても取りこぼさない。
-    card.addEventListener('pointerup', () => {
-      if (armedCard !== card) return;
-      armedCard = null;
-      requestSpeak(card._word, card);
-    });
+  card.addEventListener('pointercancel', () => { armedCard = null; });
 
-    card.addEventListener('pointercancel', () => { armedCard = null; });
+  // iOS はページ最初の発話を click 系の操作でしか解禁しない。
+  // まだ一度も鳴っていない間だけ、click で鳴らし直す。
+  card.addEventListener('click', () => {
+    if (!unlocked) requestSpeak(speechOf(card._item), card);
+  });
 
-    // iOS はページ最初の発話を click 系の操作でしか解禁しない。
-    // まだ一度も鳴っていない間だけ、click で鳴らし直す。
-    card.addEventListener('click', () => {
-      if (!unlocked) requestSpeak(card._word, card);
-    });
+  return card;
+}
 
+function ensureCards(count) {
+  if (cards.length === count) return;
+  armedCard = null;
+  gridEl.innerHTML = '';
+  cards.length = 0;
+  for (let i = 0; i < count; i++) {
+    const card = createCard();
     cards.push(card);
     gridEl.append(card);
   }
+  gridEl.className = 'n' + count;
 }
 
-function applyCategory(category) {
+function fillCard(card, item, color) {
+  card._item = item;
+  card.style.setProperty('--card', color);
+  card.innerHTML = '';
+
+  if (item.num !== undefined) {
+    const numeral = document.createElement('span');
+    numeral.className = 'numeral';
+    numeral.textContent = item.num;
+
+    const dots = document.createElement('span');
+    dots.className = 'dots';
+    for (let i = 0; i < item.num; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dots.append(dot);
+    }
+    card.append(numeral, dots);
+  } else {
+    const emoji = document.createElement('span');
+    emoji.className = 'emoji';
+    emoji.textContent = item.e;
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = item.n;
+    card.append(emoji, name);
+  }
+}
+
+function applyGroup(group) {
+  ensureCards(group.items.length);
   cards.forEach((card, i) => {
-    const word = category.words[i];
-    card._word = word;
-    card.style.setProperty('--card', category.color);
-    card.querySelector('.emoji').textContent = word.e;
-    card.querySelector('.name').textContent = word.n;
+    fillCard(card, group.items[i], group.color);
 
     // 順に現れる演出。切替のたびに頭から流し直す
     card.classList.remove('enter', 'talking');
     void card.offsetWidth;
-    card.style.animationDelay = (i * 55) + 'ms';
+    card.style.animationDelay = (i * 45) + 'ms';
     card.classList.add('enter');
   });
 }
 
-/* ── タブ ─────────────────────────────── */
-let currentIndex = -1;
+/* ── モードとタブ ───────────────────────── */
+let modeIndex = -1;
+let groupIndex = -1;
 
-function selectCategory(index) {
-  if (index === currentIndex) return; // 連打で作り直さない
-  currentIndex = index;
+function selectGroup(index, speakName) {
+  const groups = MODES[modeIndex].groups;
+  if (index === groupIndex) return; // 連打で作り直さない
+  groupIndex = index;
 
-  // ここでは cancel しない。直後のカテゴリ名の発話が
-  // cancel を必要な場合だけ行うため、cancel の二重発行を避ける。
-  const category = CATEGORIES[index];
-  applyCategory(category);
+  const group = groups[index];
+  applyGroup(group);
 
   [...tabsEl.children].forEach((tab, i) => {
     tab.classList.toggle('active', i === index);
-    tab.style.setProperty('--card', CATEGORIES[i].color);
+    tab.style.setProperty('--card', groups[i].color);
   });
+
+  if (speakName) {
+    const tab = tabsEl.children[index];
+    requestSpeak(group.tabSpeech || group.tabName, tab);
+  }
 }
 
 function renderTabs() {
-  CATEGORIES.forEach((category, i) => {
+  const groups = MODES[modeIndex].groups;
+  tabsEl.innerHTML = '';
+  groups.forEach((group, i) => {
     const tab = document.createElement('button');
     tab.className = 'tab';
 
     const emoji = document.createElement('span');
     emoji.className = 'emoji';
-    emoji.textContent = category.tabEmoji;
+    emoji.textContent = group.tabEmoji;
 
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = category.tabName;
+    name.textContent = group.tabName;
 
     tab.append(emoji, name);
 
     // カードと同じく「押したら鳴る」を守る。押した瞬間ではなく離したときに確定。
     tab.addEventListener('click', () => {
-      selectCategory(i);
-      requestSpeak({ n: category.tabName }, tab);
+      pop(tab);
+      selectGroup(i, true);
     });
 
     tabsEl.append(tab);
   });
 }
 
-buildCards();
-renderTabs();
-selectCategory(0);
+function selectMode(index, speakName) {
+  if (index === modeIndex) return;
+  modeIndex = index;
+  groupIndex = -1;
+
+  const mode = MODES[index];
+  [...modesEl.children].forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+    el.style.setProperty('--accent', MODES[i].accent);
+  });
+
+  renderTabs();
+  selectGroup(0, false);
+
+  if (speakName) requestSpeak(mode.name, modesEl.children[index]);
+}
+
+function renderModes() {
+  MODES.forEach((mode, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'mode';
+
+    const emoji = document.createElement('span');
+    emoji.className = 'emoji';
+    emoji.textContent = mode.emoji;
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = mode.name;
+
+    btn.append(emoji, name);
+    btn.addEventListener('click', () => {
+      pop(btn);
+      selectMode(i, true);
+    });
+
+    modesEl.append(btn);
+  });
+}
+
+renderModes();
+selectMode(0, false);
 </script>
 
 </body>
