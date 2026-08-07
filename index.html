@@ -74,9 +74,12 @@
   .mode { min-height: 60px; }
   .tab  { min-height: 72px; }
 
+  /* ひらがなモードでは絵文字ではなく文字が入るので、日本語書体まで落ちるようにする */
   .mode .emoji, .tab .emoji {
     line-height: 1;
-    font-family: "Apple Color Emoji", sans-serif;
+    font-family: "Apple Color Emoji", "Hiragino Maru Gothic ProN", sans-serif;
+    font-weight: 700;
+    color: var(--label);
   }
 
   .mode .emoji { font-size: min(5.4vmin, 6.6vh); }
@@ -175,8 +178,24 @@
     background: var(--dot);
   }
 
+  /* ひらがなカード: 文字が主役、絵はその音を思い出すための鍵 */
+  .card .kana {
+    font-size: min(14vmin, 17vh);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--label);
+  }
+
+  .card .pic {
+    font-size: min(8vmin, 10vh);
+    line-height: 1.1;
+    font-family: "Apple Color Emoji", sans-serif;
+  }
+
   /* 1画面の枚数が増えたときは中身を縮める（将来グループを増やしたとき用） */
   #grid.dense .emoji   { font-size: min(15vmin, 18vh); }
+  #grid.dense .kana    { font-size: min(11vmin, 14vh); }
+  #grid.dense .pic     { font-size: min(6vmin, 8vh); }
   #grid.dense .numeral { font-size: min(7vmin, 8vh); }
   #grid.dense .dots    { gap: 0.8vmin; margin: 0.6vmin 0; }
   #grid.dense .dot     { width: 3vmin; height: 3vmin; }
@@ -306,9 +325,102 @@ const NUMBER_GROUPS = [
   { tabEmoji: '🟣', tabName: '6から10', tabSpeech: 'ろくからじゅう',  color: '#E2DCF0', items: numberItems(6, 10) },
 ];
 
+/* ひらがな 46文字。行ごとに1画面。
+   { k: 文字, e: 絵文字, w: その音で始まる言葉 }
+   読み上げは「ア、あり」のように、文字の音のあとに言葉を続ける。
+   単独のひらがなはカタカナに直して読ませる（「は」を「わ」と読まれないため）。
+   を・ん はその音で始まる言葉が無いので文字だけにする。 */
+const HIRA_ROWS = [
+  { color: '#F7D9CB', chars: [
+    { k: 'あ', e: '🐜', w: 'あり' },
+    { k: 'い', e: '🐶', w: 'いぬ' },
+    { k: 'う', e: '🐴', w: 'うま' },
+    { k: 'え', e: '✏️', w: 'えんぴつ' },
+    { k: 'お', e: '🍙', w: 'おにぎり' },
+  ] },
+  { color: '#F6E4B8', chars: [
+    { k: 'か', e: '🦀', w: 'かに' },
+    { k: 'き', e: '🦒', w: 'きりん' },
+    { k: 'く', e: '🚙', w: 'くるま' },
+    { k: 'け', e: '🍰', w: 'ケーキ' },
+    { k: 'こ', e: '🐷', w: 'こぶた' },
+  ] },
+  { color: '#D8E7D0', chars: [
+    { k: 'さ', e: '🐟', w: 'さかな' },
+    { k: 'し', e: '🚄', w: 'しんかんせん' },
+    { k: 'す', e: '🍉', w: 'すいか' },
+    { k: 'せ', e: '🧥', w: 'セーター' },
+    { k: 'そ', e: '🛷', w: 'そり' },
+  ] },
+  { color: '#CDE4EC', chars: [
+    { k: 'た', e: '🥁', w: 'たいこ' },
+    { k: 'ち', e: '🦋', w: 'ちょうちょ' },
+    { k: 'つ', e: '🌙', w: 'つき' },
+    { k: 'て', e: '🐞', w: 'てんとうむし' },
+    { k: 'と', e: '🐯', w: 'とら' },
+  ] },
+  { color: '#E2DCF0', chars: [
+    { k: 'な', e: '🍆', w: 'なす' },
+    { k: 'に', e: '🌈', w: 'にじ' },
+    { k: 'ぬ', e: '🧸', w: 'ぬいぐるみ' },
+    { k: 'ね', e: '🐱', w: 'ねこ' },
+    { k: 'の', e: '🥤', w: 'のみもの' },
+  ] },
+  { color: '#F3D5DE', chars: [
+    { k: 'は', e: '🌸', w: 'はな' },
+    { k: 'ひ', e: '✈️', w: 'ひこうき' },
+    { k: 'ふ', e: '🚢', w: 'ふね' },
+    { k: 'へ', e: '🐍', w: 'へび' },
+    { k: 'ほ', e: '📕', w: 'ほん' },
+  ] },
+  { color: '#E7E2CE', chars: [
+    { k: 'ま', e: '🧣', w: 'マフラー' },
+    { k: 'み', e: '🍊', w: 'みかん' },
+    { k: 'む', e: '🐛', w: 'むし' },
+    { k: 'め', e: '🍈', w: 'メロン' },
+    { k: 'も', e: '🍑', w: 'もも' },
+  ] },
+  { color: '#D6E3F0', chars: [
+    { k: 'や', e: '⛰️', w: 'やま' },
+    { k: 'ゆ', e: '💍', w: 'ゆびわ' },
+    { k: 'よ', e: '⛵', w: 'ヨット' },
+  ] },
+  { color: '#F0DCC8', chars: [
+    { k: 'ら', e: '🦁', w: 'ライオン' },
+    { k: 'り', e: '🍎', w: 'りんご' },
+    { k: 'る', e: '🔍', w: 'ルーペ' },
+    { k: 'れ', e: '🍋', w: 'レモン' },
+    { k: 'ろ', e: '🚀', w: 'ロケット' },
+  ] },
+  { color: '#DDE7DE', chars: [
+    { k: 'わ', e: '🐊', w: 'わに' },
+    { k: 'を' },
+    { k: 'ん' },
+  ] },
+];
+
+// ひらがな→カタカナ（文字コードが 0x60 ずれているだけ）
+function toKatakana(ch) {
+  return String.fromCharCode(ch.charCodeAt(0) + 0x60);
+}
+
+const HIRA_GROUPS = HIRA_ROWS.map(row => ({
+  tabEmoji: row.chars[0].k,
+  tabName: '',
+  tabSpeech: toKatakana(row.chars[0].k),
+  color: row.color,
+  items: row.chars.map(c => ({
+    kana: c.k,
+    e: c.e,
+    n: c.w || '',
+    s: c.w ? toKatakana(c.k) + '、' + c.w : toKatakana(c.k),
+  })),
+}));
+
 const MODES = [
-  { emoji: '🧸', name: 'ことば', groups: WORD_GROUPS,   lastGroup: 0 },
-  { emoji: '✋', name: 'かず',   groups: NUMBER_GROUPS, lastGroup: 0 },
+  { emoji: '🐤', name: 'ことば',   groups: WORD_GROUPS,   lastGroup: 0 },
+  { emoji: '✋', name: 'かず',     groups: NUMBER_GROUPS, lastGroup: 0 },
+  { emoji: 'あ', name: 'ひらがな', groups: HIRA_GROUPS,   lastGroup: 0 },
 ];
 
 const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
@@ -491,7 +603,24 @@ function fillCard(card, item, color) {
   card.style.setProperty('--card', color);
   card.innerHTML = '';
 
-  if (item.num !== undefined) {
+  if (item.kana !== undefined) {
+    const kana = document.createElement('span');
+    kana.className = 'kana';
+    kana.textContent = item.kana;
+    card.append(kana);
+
+    // を・ん には、その音で始まる言葉が無いので文字だけを出す
+    if (item.e) {
+      const pic = document.createElement('span');
+      pic.className = 'pic';
+      pic.textContent = item.e;
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = item.n;
+      card.append(pic, name);
+    }
+  } else if (item.num !== undefined) {
     const numeral = document.createElement('span');
     numeral.className = 'numeral';
     numeral.textContent = item.num;
@@ -573,11 +702,16 @@ function renderTabs() {
     emoji.className = 'emoji';
     emoji.textContent = group.tabEmoji;
 
-    const name = document.createElement('span');
-    name.className = 'name';
-    name.textContent = group.tabName;
+    tab.append(emoji);
 
-    tab.append(emoji, name);
+    // ひらがなモードのタブは文字だけ（10個並ぶので名前を出す余地がない）
+    if (group.tabName) {
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = group.tabName;
+      tab.append(name);
+    }
+
     bindPress(tab, () => selectGroup(i, true));
     tabsEl.append(tab);
   });
