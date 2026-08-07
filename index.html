@@ -52,6 +52,10 @@
     background: var(--bar);
   }
 
+  /* touch-action は継承されない。ボタン側にも指定しないと、指を滑らせた
+     ときに iOS がジェスチャと解釈して pointercancel を投げ、音が鳴らない */
+  .mode, .tab, .card { touch-action: none; }
+
   .mode, .tab {
     flex: 1;
     display: flex;
@@ -61,12 +65,14 @@
     border: none;
     /* カードとは形で区別する（丸みの浅い横長の帯） */
     border-radius: 1.6vmin;
-    background: #FFFFFF;
+    /* 非選択も色を持たせる。ひらがなの10タブは文字が読めない子には
+       見分けがつかず、色だけが「さっきの場所」に戻る手がかりになる */
+    background: var(--accent, #FFFFFF);
     box-shadow: 0 0.4vmin 1vmin rgba(107, 95, 82, 0.14);
     font-family: inherit;
     -webkit-user-drag: none;
     cursor: pointer;
-    transition: transform 150ms ease-out, background-color 150ms ease-out;
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out;
   }
 
   .mode > *, .tab > * { pointer-events: none; }
@@ -94,10 +100,9 @@
   .tab  .name { font-size: min(3.2vmin, 4vh); opacity: 0.85; }
 
   /* 選択状態は透明度で表さない（2〜3歳児は薄い＝壊れている と受け取るため）。
-     モードもタブも「選ばれたものは沈む」で統一する。 */
+     モードもタブも「選ばれたものは沈み、内側に縁がつく」で統一する。 */
   .mode.active, .tab.active {
-    background: var(--accent, #F7F1E6);
-    box-shadow: none;
+    box-shadow: inset 0 0 0 0.7vmin rgba(107, 95, 82, 0.32);
     transform: translateY(0.6vmin);
   }
 
@@ -116,6 +121,14 @@
 
   .card {
     position: relative;
+    /* 枚数が3枚の行（や・わ）でカードだけ極端に大きくならないよう頭を抑える。
+       行を移るたびに大きさが変わると、子どもには別のものに見える */
+    width: 100%;
+    height: 100%;
+    max-width: 52vmin;
+    max-height: 46vmin;
+    justify-self: center;
+    align-self: center;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -180,14 +193,24 @@
 
   /* ひらがなカード: 文字が主役、絵はその音を思い出すための鍵 */
   .card .kana {
-    font-size: min(14vmin, 17vh);
-    font-weight: 700;
+    font-size: min(12vmin, 15vh);
+    /* 丸ゴシックは1ウェイトしかなく、700 にすると合成ボールドで字形が崩れる。
+       ひらがなの形に触れさせるモードなので、素の字形のまま出す */
+    font-weight: 500;
     line-height: 1;
     color: var(--label);
+    margin-bottom: 0.8vmin;
+  }
+
+  /* を・ん は絵が無いので、文字そのものを主役として大きく出す
+     （中央に小さく1文字だけだと「作りかけ」に見える） */
+  .card.kana-only .kana {
+    font-size: min(24vmin, 28vh);
+    margin-bottom: 0;
   }
 
   .card .pic {
-    font-size: min(8vmin, 10vh);
+    font-size: min(9vmin, 10.5vh);
     line-height: 1.1;
     font-family: "Apple Color Emoji", sans-serif;
   }
@@ -226,9 +249,13 @@
     100% { transform: scale(1); }
   }
 
-  /* 喋っている間だけゆっくり脈打たせ、音と絵を結び付ける */
+  /* 喋っている間だけゆっくり脈打たせ、音と絵を結び付ける。
+     カードの種類が増えたら、その主役要素をここに必ず足すこと。
+     （音が出ないときは脈動もしないので、親が異常に気づける手がかりになる） */
   .card.talking .emoji,
   .card.talking .numeral,
+  .card.talking .dots,
+  .card.talking .kana,
   .mode.talking .emoji,
   .tab.talking .emoji {
     animation: talk 1.1s ease-in-out infinite;
@@ -247,6 +274,13 @@
     /* 下端のホームバー領域から物理的に離す（こすって離脱するのを減らす） */
     margin-bottom: 20px;
     background: var(--bar);
+  }
+
+  /* タブが多いとき（ひらがなの10行）、縦向きでは1つ約62pxまで痩せて
+     2〜3歳の指では狙えない。2段に折り返して1つの幅を倍に取る */
+  @media (orientation: portrait) {
+    #tabs.many { flex-wrap: wrap; }
+    #tabs.many .tab { flex: 1 1 17%; min-height: 62px; }
   }
 </style>
 </head>
@@ -313,7 +347,7 @@ function numberItems(from, to) {
   const items = [];
   for (let n = from; n <= to; n++) {
     const kana = n <= 10 ? KANA[n] : (n === 20 ? 'にじゅう' : 'じゅう' + KANA[n - 10]);
-    items.push({ num: n, n: kana, s: kana });
+    items.push({ type: 'num', num: n, n: kana, s: kana });
   }
   return items;
 }
@@ -399,9 +433,11 @@ const HIRA_ROWS = [
   ] },
 ];
 
-// ひらがな→カタカナ（文字コードが 0x60 ずれているだけ）
-function toKatakana(ch) {
-  return String.fromCharCode(ch.charCodeAt(0) + 0x60);
+// ひらがな→カタカナ（文字コードが 0x60 ずれているだけ）。
+// 1文字ずつ変換し、範囲外（長音符など）はそのまま通す。
+// 先頭1文字だけの変換にすると、拗音を足したとき「きゃ」が「キゃ」になる。
+function toKatakana(str) {
+  return String(str).replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
 }
 
 const HIRA_GROUPS = HIRA_ROWS.map(row => ({
@@ -410,6 +446,7 @@ const HIRA_GROUPS = HIRA_ROWS.map(row => ({
   tabSpeech: toKatakana(row.chars[0].k),
   color: row.color,
   items: row.chars.map(c => ({
+    type: 'kana',
     kana: c.k,
     e: c.e,
     n: c.w || '',
@@ -420,7 +457,9 @@ const HIRA_GROUPS = HIRA_ROWS.map(row => ({
 const MODES = [
   { emoji: '🐤', name: 'ことば',   groups: WORD_GROUPS,   lastGroup: 0 },
   { emoji: '✋', name: 'かず',     groups: NUMBER_GROUPS, lastGroup: 0 },
-  { emoji: 'あ', name: 'ひらがな', groups: HIRA_GROUPS,   lastGroup: 0 },
+  // アイコンに「あ」を使うと、モード・タブ・カードの3箇所に同じ字が並び、
+  // どれを押しても違うことが起きる状態になるため絵文字にする
+  { emoji: '🖍️', name: 'ひらがな', groups: HIRA_GROUPS, lastGroup: 0 },
 ];
 
 const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
@@ -488,10 +527,8 @@ let lastEl = null;
 let lastAt = 0;
 function requestSpeak(text, el) {
   const now = Date.now();
-  if (unlocked) {
-    if (now - lastAt < 150) return;                       // 交互連打
-    if (el === lastEl && now - lastAt < 500) return;      // 同じものの連打
-  }
+  if (now - lastAt < 150) return;                              // 交互連打
+  if (unlocked && el === lastEl && now - lastAt < 500) return; // 同じものの連打
   lastEl = el;
   lastAt = now;
   speak(text, el);
@@ -550,6 +587,12 @@ function bindPress(el, onPress) {
     if (armedEl === el) armedEl = null;
   });
 
+  // pop を外さないと、次にこの要素へ付けるアニメーション（出現演出）が
+  // 同じ詳細度の pop に負けて再生されなくなる
+  el.addEventListener('animationend', (e) => {
+    if (e.animationName === 'pop') el.classList.remove('pop');
+  });
+
   el.addEventListener('click', () => {
     if (unlocked) return;
     // pointerup 側の発話が動いているなら、重ねて cancel を呼ばない
@@ -574,14 +617,15 @@ function createCard() {
   return card;
 }
 
+const portraitMQ = window.matchMedia('(orientation: portrait)');
+
 function layoutGrid(count) {
   // 横向きは2段、縦向きは2列。枚数から機械的に決める（CSSに枚数を書かない）
-  const portrait = window.matchMedia('(orientation: portrait)').matches;
-  const cols = portrait ? 2 : Math.ceil(count / 2);
+  const cols = portraitMQ.matches ? 2 : Math.ceil(count / 2);
   const rows = Math.ceil(count / cols);
   gridEl.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
   gridEl.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
-  gridEl.classList.toggle('dense', cols >= 4);
+  gridEl.classList.toggle('dense', count >= 8); // 1画面が増えたら中身を縮める
 }
 
 function ensureCards(count) {
@@ -602,8 +646,9 @@ function fillCard(card, item, color) {
   card._item = item;
   card.style.setProperty('--card', color);
   card.innerHTML = '';
+  card.classList.toggle('kana-only', item.type === 'kana' && !item.e);
 
-  if (item.kana !== undefined) {
+  if (item.type === 'kana') {
     const kana = document.createElement('span');
     kana.className = 'kana';
     kana.textContent = item.kana;
@@ -614,13 +659,15 @@ function fillCard(card, item, color) {
       const pic = document.createElement('span');
       pic.className = 'pic';
       pic.textContent = item.e;
-
+      card.append(pic);
+    }
+    if (item.n) {
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = item.n;
-      card.append(pic, name);
+      card.append(name);
     }
-  } else if (item.num !== undefined) {
+  } else if (item.type === 'num') {
     const numeral = document.createElement('span');
     numeral.className = 'numeral';
     numeral.textContent = item.num;
@@ -653,6 +700,10 @@ function fillCard(card, item, color) {
 
 function applyGroup(group) {
   armedEl = null; // 中身が変わるので、押しかけの指は無効にする
+  // カードは使い回すため、中身が変われば「同じものの連打」判定を捨てる。
+  // 残しておくと、行を移った直後に同じ位置を押したとき無音になる。
+  lastEl = null;
+  speakingEl = null;
   ensureCards(group.items.length);
   cards.forEach((card, i) => {
     fillCard(card, group.items[i], group.color);
@@ -674,6 +725,8 @@ let groupIndex = -1;
 
 function selectGroup(index, speakName) {
   const mode = MODES[modeIndex];
+  // データを減らしたときに、保持していた位置が無くなっていても壊れないように
+  if (!mode.groups[index]) index = 0;
   const group = mode.groups[index];
 
   if (speakName) requestSpeak(group.tabSpeech || group.tabName, tabsEl.children[index]);
@@ -694,6 +747,7 @@ function selectGroup(index, speakName) {
 function renderTabs() {
   const groups = MODES[modeIndex].groups;
   tabsEl.innerHTML = '';
+  tabsEl.classList.toggle('many', groups.length > 5); // 縦向きで2段に折り返す
   groups.forEach((group, i) => {
     const tab = document.createElement('button');
     tab.className = 'tab';
@@ -728,6 +782,8 @@ function selectMode(index, speakName) {
 
   [...modesEl.children].forEach((el, i) => {
     el.classList.toggle('active', i === index);
+    // 選んでいないモードは色を持たない（選択中の1つだけを色で示す）
+    if (i !== index) el.style.removeProperty('--accent');
   });
 
   renderTabs();
@@ -753,13 +809,11 @@ function renderModes() {
   });
 }
 
-// 画面を回したときは列の組み方が変わる
-window.addEventListener('orientationchange', () => {
-  if (cards.length) layoutGrid(cards.length);
-});
-window.matchMedia('(orientation: portrait)').addEventListener('change', () => {
-  if (cards.length) layoutGrid(cards.length);
-});
+// 画面を回したとき・分割表示で幅が変わったときは列の組み方が変わる
+const relayout = () => { if (cards.length) layoutGrid(cards.length); };
+window.addEventListener('orientationchange', relayout);
+window.addEventListener('resize', relayout);
+portraitMQ.addEventListener('change', relayout);
 
 renderModes();
 selectMode(0, false);
