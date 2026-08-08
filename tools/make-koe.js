@@ -23,7 +23,8 @@ const MANIFEST = path.join(OUT_DIR, 'index.json');
 const args = process.argv.slice(2);
 const REBUILD_ALL = args.includes('--all');
 const voiceArg = args.indexOf('--voice');
-const VOICE = voiceArg >= 0 ? args[voiceArg + 1] : 'Grandma';
+// 既定は Kyoko（9声を聞き比べて選んだ声）。変えたいときだけ --voice を渡す
+const VOICE = voiceArg >= 0 ? args[voiceArg + 1] : 'Kyoko';
 const RATE = 175; // 1分あたりの語数。小さいほどゆっくり
 
 /* ── index.html から単語データを取り出す ────────────────── */
@@ -54,18 +55,37 @@ function collectPhrases(modes) {
   return [...set];
 }
 
+/* ── 前回の対応表を読む（無ければ空）────────────────── */
+function loadPrevious() {
+  try {
+    const prev = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+    const byName = {}; // ファイル名 → 前回そこに入れた読み上げ文字列
+    for (const [text, name] of Object.entries(prev.files || {})) byName[name] = text;
+    return { voice: prev.voice, byName };
+  } catch {
+    return { voice: null, byName: {} };
+  }
+}
+
 /* ── say で1語ずつ書き出す ───────────────────────────── */
-function synthesize(phrases) {
+function synthesize(phrases, prev) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const voiceName = `${VOICE} (日本語（日本）)`;
   const files = {};
   let made = 0, skipped = 0;
 
+  // 声を変えたら全部作り直す（一部だけ声が違う状態は耳で気づきにくい）
+  const forceAll = REBUILD_ALL || prev.voice !== VOICE;
+
   phrases.forEach((text, i) => {
     const name = 'w' + String(i + 1).padStart(3, '0') + '.m4a';
     files[text] = name;
     const file = path.join(OUT_DIR, name);
-    if (!REBUILD_ALL && fs.existsSync(file)) { skipped++; return; }
+    // 名前は並び順で決まるので、語を足すと番号が1つずつずれる。
+    // 前回その名前に入れた文字列と違うなら、中身が食い違うので作り直す。
+    // これを見落とすと、絵と音が入れ替わったまま誰も気づけない。
+    const sameAsBefore = prev.byName[name] === text;
+    if (!forceAll && sameAsBefore && fs.existsSync(file)) { skipped++; return; }
     execFileSync('say', ['-v', voiceName, '-r', String(RATE), '--data-format=aac', '-o', file, text]);
     made++;
   });
@@ -75,7 +95,8 @@ function synthesize(phrases) {
 const modes = loadData();
 // 並び順を固定する。順番が変わると連番と中身がずれる
 const phrases = collectPhrases(modes).sort();
-const { files, made, skipped } = synthesize(phrases);
+const prev = loadPrevious();
+const { files, made, skipped } = synthesize(phrases, prev);
 
 // 前回の生成物のうち、今回使われないものを消す（語を減らしたとき用）
 const keep = new Set(Object.values(files));
