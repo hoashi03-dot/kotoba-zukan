@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>こえ くらべ</title>
+<style>
+  :root { --label: #6B5F52; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    padding: 16px 16px 60px;
+    background: #F3EDE1;
+    color: var(--label);
+    font-family: "Hiragino Maru Gothic ProN", -apple-system, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 21px; margin-bottom: 6px; }
+  p.note { font-size: 14px; opacity: 0.85; margin-bottom: 16px; }
+
+  .voice {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(107,95,82,.12);
+  }
+  .voice .name { font-weight: 700; font-size: 18px; margin-bottom: 8px; }
+  .voice .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .voice button {
+    flex: 1 1 30%;
+    padding: 16px 10px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    border: none;
+    border-radius: 10px;
+    background: #2F6FEB;
+    color: #fff;
+  }
+  .voice button.playing { background: #1F9D55; }
+</style>
+</head>
+<body>
+
+<h1>こえ くらべ</h1>
+<p class="note">9種類の声で、同じ3つの言葉を読んでいます。順に押して、一番よかった声の名前を教えてください。<br>
+（音が出ないときは、本体の消音スイッチと音量を確認してください）</p>
+
+<div id="list"></div>
+
+<script>
+const VOICES = ['Grandma', 'Grandpa', 'Flo', 'Eddy', 'Reed', 'Rocko', 'Sandy', 'Shelley', 'Kyoko'];
+const WORDS = ['しょうぼうしゃ', 'ア、あり', 'いぬ'];
+
+const listEl = document.getElementById('list');
+let current = null;
+
+VOICES.forEach(v => {
+  const box = document.createElement('div');
+  box.className = 'voice';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = v + (v === 'Kyoko' ? '（いま使っている声）' : '');
+
+  const btns = document.createElement('div');
+  btns.className = 'btns';
+
+  WORDS.forEach((w, i) => {
+    const b = document.createElement('button');
+    b.textContent = w;
+    b.addEventListener('click', () => {
+      if (current) { current.pause(); current = null; }
+      document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+      const audio = new Audio('koe/' + v + '-' + (i + 1) + '.m4a');
+      b.classList.add('playing');
+      audio.addEventListener('ended', () => b.classList.remove('playing'));
+      audio.play();
+      current = audio;
+    });
+    btns.append(b);
+  });
+
+  box.append(name, btns);
+  listEl.append(box);
+});
+</script>
+
+</body>
+</html>
