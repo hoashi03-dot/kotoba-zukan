@@ -305,6 +305,8 @@
    ・同時に画面に出る絵は重複させない（モード・タブ・カードの全部を見る）
    ・かずモードでは、量に読める絵（指の本数など）をタブに使わない
    ────────────────────────────────────────── */
+/* === DATA START ===  ここから MODES までを tools/make-koe.js が読み取り、
+   読み上げ文字列を集めて音声ファイルを作る。区切りのコメントは消さないこと。 */
 const WORD_GROUPS = [
   {
     tabEmoji: '🐾', tabName: 'どうぶつ', color: '#F7D9CB',
@@ -463,6 +465,7 @@ const MODES = [
   // どれを押しても違うことが起きる状態になるため絵文字にする
   { emoji: '🖍️', name: 'ひらがな', groups: HIRA_GROUPS, lastGroup: 0 },
 ];
+/* === DATA END === */
 
 const SPEECH_RATE = 0.85; // 2歳児向けに少しゆっくり。聞き取りにくければここを調整する。
 
@@ -489,7 +492,60 @@ function pickVoice() {
 pickVoice();
 if (synth) synth.onvoiceschanged = pickVoice;
 
+/* ── 事前に作った音声ファイル ─────────────────
+   koe/ に連番で置き、読み上げ文字列との対応は koe/index.json に持つ。
+   語を足したら tools/make-koe.js を実行すると増える。
+   ファイルが無い語だけ、その場の音声合成で読む。
+   ────────────────────────────────────── */
+let koeMap = null;                 // 読み上げ文字列 → ファイル名
+const koeAudio = new Audio();      // 1つを使い回す（iOS は要素ごとに解禁が要る）
+koeAudio.preload = 'auto';
+let koeEl = null;                  // いま鳴らしている要素
+
+fetch('koe/index.json')
+  .then(r => r.ok ? r.json() : null)
+  .then(data => { if (data && data.files) koeMap = data.files; })
+  .catch(() => { /* 無ければ合成音声だけで動く */ });
+
+function stopKoe() {
+  try { koeAudio.pause(); } catch (e) { /* noop */ }
+  if (koeEl) koeEl.classList.remove('talking');
+  koeEl = null;
+}
+
+koeAudio.addEventListener('playing', () => {
+  unlocked = true;
+  if (koeEl) koeEl.classList.add('talking');
+});
+koeAudio.addEventListener('ended', stopKoe);
+// 読み込みに失敗したら、その場で合成音声に切り替える
+koeAudio.addEventListener('error', () => {
+  const el = koeEl;
+  const text = koeAudio.dataset.text;
+  stopKoe();
+  if (koeMap) delete koeMap[text]; // 鳴らないファイルは以後あきらめて合成音声に回す
+  speakBySynth(text, el);
+});
+
+function playKoe(text, el) {
+  // 同じものが鳴っている間は無視して、最後まで聞かせる
+  if (koeEl === el && !koeAudio.paused) return;
+  stopKoe();
+  try { if (synth) synth.cancel(); } catch (e) { /* noop */ }
+  koeEl = el;
+  koeAudio.dataset.text = text;
+  koeAudio.src = 'koe/' + koeMap[text];
+  const p = koeAudio.play();
+  if (p && p.catch) p.catch(() => { const el2 = koeEl; stopKoe(); speakBySynth(text, el2); });
+}
+
 function speak(text, el) {
+  if (!text) return;
+  if (koeMap && koeMap[text]) { playKoe(text, el); return; }
+  speakBySynth(text, el);
+}
+
+function speakBySynth(text, el) {
   if (!synth || !text) return;
   try {
     // 同じものを連打されても、鳴っている間は無視して最後まで聞かせる
@@ -538,6 +594,7 @@ function requestSpeak(text, el) {
 
 /* 読み上げ中に離脱すると iOS の音声が固まるため、状態を戻しておく */
 function resetSpeech() {
+  stopKoe();
   if (!synth) return;
   try { synth.cancel(); } catch (e) { /* noop */ }
   if (speakingEl) speakingEl.classList.remove('talking');
@@ -597,8 +654,9 @@ function bindPress(el, onPress) {
 
   el.addEventListener('click', () => {
     if (unlocked) return;
-    // pointerup 側の発話が動いているなら、重ねて cancel を呼ばない
+    // pointerup 側の発話・再生が動いているなら、重ねて鳴らし直さない
     if (synth && (synth.speaking || synth.pending)) return;
+    if (!koeAudio.paused) return;
     onPress();
   });
 }
