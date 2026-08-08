@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>こえ えらび</title>
+<style>
+  :root { --label: #6B5F52; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    padding: 16px 16px 60px;
+    background: #F3EDE1;
+    color: var(--label);
+    font-family: "Hiragino Maru Gothic ProN", -apple-system, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  h2 { font-size: 19px; margin: 22px 0 10px; }
+  p.note { font-size: 14px; opacity: 0.85; margin-bottom: 8px; }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(107,95,82,.12);
+  }
+  .row .info { flex: 1; min-width: 0; }
+  .row .name { font-weight: 700; }
+  .row .meta { font-size: 13px; opacity: 0.7; }
+  .row button {
+    flex: none;
+    padding: 14px 18px;
+    font-size: 17px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 10px;
+    background: #2F6FEB;
+    color: #fff;
+  }
+
+  .ctrl { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .ctrl label { display: block; font-weight: 700; margin-bottom: 4px; }
+  .ctrl input[type=range] { width: 100%; }
+  .ctrl .val { font-variant-numeric: tabular-nums; }
+
+  .samples { display: flex; flex-wrap: wrap; gap: 8px; }
+  .samples button {
+    padding: 12px 14px;
+    font-size: 16px;
+    font-family: inherit;
+    border: none;
+    border-radius: 10px;
+    background: #1F9D55;
+    color: #fff;
+  }
+
+  #result {
+    margin-top: 18px;
+    padding: 14px;
+    background: #fff;
+    border-radius: 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+</style>
+</head>
+<body>
+
+<h2>1. この端末に入っている日本語の声</h2>
+<p class="note">それぞれの「きく」を押して聞き比べてください。「拡張」と付くものや、名前の違うものがあれば、そちらのほうが自然なことが多いです。</p>
+<div id="voices">読み取り中…</div>
+
+<h2>2. 速さと 高さ</h2>
+<p class="note">動かしてから、下の言葉を押すと、その設定で読みます。いまのアプリは 速さ0.85／高さ1.0 です。</p>
+<div class="ctrl">
+  <label>速さ <span class="val" id="rateVal">0.85</span></label>
+  <input type="range" id="rate" min="0.6" max="1.2" step="0.05" value="0.85">
+</div>
+<div class="ctrl">
+  <label>高さ <span class="val" id="pitchVal">1.0</span></label>
+  <input type="range" id="pitch" min="0.7" max="1.6" step="0.05" value="1.0">
+</div>
+
+<h2>3. ためす言葉</h2>
+<div class="samples" id="samples"></div>
+
+<h2>4. いまの設定</h2>
+<div id="result">（まだ何も押していません）</div>
+
+<script>
+const SAMPLES = [
+  'しょうぼうしゃ',
+  '消防車',
+  'いぬ',
+  'ア、あり',
+  'ケ、ケーキ',
+  'ヲ',
+  'ン',
+  'よん',
+  'なな',
+  'こいのぼり',
+];
+
+const voicesEl = document.getElementById('voices');
+const samplesEl = document.getElementById('samples');
+const resultEl = document.getElementById('result');
+const rateEl = document.getElementById('rate');
+const pitchEl = document.getElementById('pitch');
+const rateVal = document.getElementById('rateVal');
+const pitchVal = document.getElementById('pitchVal');
+
+let chosen = null; // 選ばれた声
+
+function speak(text) {
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ja-JP';
+  u.rate = parseFloat(rateEl.value);
+  u.pitch = parseFloat(pitchEl.value);
+  if (chosen) u.voice = chosen;
+  speechSynthesis.speak(u);
+  resultEl.textContent =
+    '声: ' + (chosen ? chosen.name + '（' + chosen.lang + '／' +
+      (chosen.localService ? '端末内蔵' : 'ネット経由') + '）' : '（指定なし＝既定）') + '\n' +
+    '速さ: ' + u.rate.toFixed(2) + '\n' +
+    '高さ: ' + u.pitch.toFixed(2) + '\n' +
+    '読んだ言葉: ' + text + '\n\n' +
+    'この4行をそのまま伝えてください。アプリに反映します。';
+}
+
+function renderVoices() {
+  const all = speechSynthesis.getVoices();
+  const ja = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('ja'));
+  const list = ja.length ? ja : all;
+
+  voicesEl.innerHTML = '';
+  if (!list.length) {
+    voicesEl.textContent = '声が見つかりません。少し待ってから再読み込みしてください。';
+    return;
+  }
+
+  if (!ja.length) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = '日本語の声が見つからないため、全ての声を出しています。';
+    voicesEl.append(p);
+  }
+
+  list.forEach(v => {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = v.name;
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = v.lang + '／' + (v.localService ? '端末内蔵' : 'ネット経由') + (v.default ? '／既定' : '');
+    info.append(name, meta);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'きく';
+    btn.addEventListener('click', () => {
+      chosen = v;
+      speak('しょうぼうしゃ');
+    });
+
+    row.append(info, btn);
+    voicesEl.append(row);
+  });
+
+  const total = document.createElement('p');
+  total.className = 'note';
+  total.textContent = '日本語の声: ' + ja.length + '個／全部で ' + all.length + '個';
+  voicesEl.append(total);
+}
+
+renderVoices();
+speechSynthesis.onvoiceschanged = renderVoices;
+
+SAMPLES.forEach(text => {
+  const b = document.createElement('button');
+  b.textContent = text;
+  b.addEventListener('click', () => speak(text));
+  samplesEl.append(b);
+});
+
+rateEl.addEventListener('input', () => { rateVal.textContent = parseFloat(rateEl.value).toFixed(2); });
+pitchEl.addEventListener('input', () => { pitchVal.textContent = parseFloat(pitchEl.value).toFixed(2); });
+</script>
+
+</body>
+</html>
