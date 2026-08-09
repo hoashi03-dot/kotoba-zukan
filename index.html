@@ -91,9 +91,12 @@
   .mode .emoji { font-size: min(5.4vmin, 6.6vh); }
   .tab  .emoji { font-size: min(6.4vmin, 8vh); }
 
+  /* モード名は折り返させない。余白は7pxしかなく、5文字のモードを足した
+     瞬間に静かに2行になって帯が伸びる */
   .mode .name, .tab .name {
     font-weight: 600;
     color: var(--label);
+    white-space: nowrap;
   }
 
   .mode .name { font-size: min(3.6vmin, 4.4vh); }
@@ -191,15 +194,18 @@
     background: var(--dot);
   }
 
-  /* ひらがなカード: 文字が主役、絵はその音を思い出すための鍵 */
+  /* ひらがなカード: 文字が主役、絵はその音を思い出すための鍵。
+     768×1024 の iPad（9.7/Air2/mini4）縦向きでは、これより大きいと
+     カードの高さを14px超えて overflow:hidden に字の上下を削られる。
+     字の形に触れさせる画面で字が欠けるので、収まる側に倒す */
   .card .kana {
-    font-size: min(12vmin, 15vh);
+    font-size: min(11vmin, 14vh);
     /* 丸ゴシックは1ウェイトしかなく、700 にすると合成ボールドで字形が崩れる。
        ひらがなの形に触れさせるモードなので、素の字形のまま出す */
     font-weight: 500;
     line-height: 1;
     color: var(--label);
-    margin-bottom: 0.8vmin;
+    margin-bottom: 0.4vmin;
   }
 
   /* を・ん は絵が無いので、文字そのものを主役として大きく出す
@@ -210,7 +216,7 @@
   }
 
   .card .pic {
-    font-size: min(9vmin, 10.5vh);
+    font-size: min(8.2vmin, 10vh);
     line-height: 1.1;
     font-family: "Apple Color Emoji", sans-serif;
   }
@@ -276,12 +282,11 @@
     background: var(--bar);
   }
 
-  /* タブが多いとき（ひらがなの10行）、縦向きでは1つ約62pxまで痩せて
-     2〜3歳の指では狙えない。2段に折り返して1つの幅を倍に取る */
-  @media (orientation: portrait) {
-    #tabs.many { flex-wrap: wrap; }
-    #tabs.many .tab { flex: 1 1 17%; min-height: 62px; }
-  }
+  /* タブが多いとき（かなの10行）は2段に折り返す。1段だと縦向きで約62px、
+     横向きでも約87px まで痩せて、2〜3歳の指では狙えない。
+     向きで分けない：横向きでも痩せ方は同じで、片方だけ直しても意味がない */
+  #tabs.many { flex-wrap: wrap; }
+  #tabs.many .tab { flex: 1 1 17%; min-height: 62px; }
 </style>
 </head>
 <body>
@@ -458,76 +463,86 @@ const HIRA_GROUPS = HIRA_ROWS.map(row => ({
   })),
 }));
 
-/* カタカナ 46文字。行の並び・色はひらがなと揃える（あ行とア行が同じ色になり、
-   同じ場所に同じ音がある と気づける）。
-   言葉は、外来語が自然な音は外来語（アイス・カメラ・テレビ…）、
-   それ以外はひらがなモードと同じ言葉をカタカナで書く。
-   ws は読み上げの表記。ひらがなモードと同じ言葉には、そちらと同じ文字列を
-   入れて音声を共用する（同じ言葉が別の音に聞こえないようにするため）。 */
+/* カタカナ 46文字。行の並びはひらがなと同じだが、絵・色・言葉はできるだけ変える。
+   最初はひらがなと同じ語をカタカナで書き、色も共通にしたが、
+   46枚中35枚が絵も音も色も同一になり、🖍️と🎨を押し分けても
+   画面が変わったように見えなくなった。文字が読めない子にとっては
+   「押しても何も起きないボタンが2つある」のと同じで、
+   このアプリで唯一守るべき「押したら何かが起きる」が壊れる。
+
+   言葉は、カタカナで実際に書くもの（外来語・擬音語・動物名）から、
+   2〜3歳が知っている語だけを選ぶ。
+   ws は読み上げの表記。どうしてもひらがなと同じ語になる11文字だけは、
+   そちらと同じ文字列を入れて音声を共用する（同じ言葉が別の音に聞こえないため）。 */
+const KATA_COLORS = [
+  '#F0BEA6', '#EFD188', '#B9D6AC', '#A9CFDE', '#C9BEE6',
+  '#E9B6C6', '#D3CBA8', '#B0C8E4', '#E2C0A0', '#BCD2BE',
+];
+
 const KATA_ROWS = [
   { chars: [
-    { k: 'ア', e: '🍦', w: 'アイス' },
-    { k: 'イ', e: '🐶', w: 'イヌ', ws: 'いぬ' },
-    { k: 'ウ', e: '🐴', w: 'ウマ', ws: 'うま' },
-    { k: 'エ', e: '✏️', w: 'エンピツ', ws: 'えんぴつ' },
-    { k: 'オ', e: '🍙', w: 'オニギリ', ws: 'おにぎり' },
+    { k: 'ア', e: '🦆', w: 'アヒル' },
+    { k: 'イ', e: '🍓', w: 'イチゴ' },
+    { k: 'ウ', e: '🐰', w: 'ウサギ' },
+    { k: 'エ', e: '🦐', w: 'エビ' },
+    { k: 'オ', e: '👻', w: 'オバケ' },
   ] },
   { chars: [
     { k: 'カ', e: '📷', w: 'カメラ' },
-    { k: 'キ', e: '🦒', w: 'キリン', ws: 'きりん' },
-    { k: 'ク', e: '🍪', w: 'クッキー' },
-    { k: 'ケ', e: '🍰', w: 'ケーキ' },
-    { k: 'コ', e: '🐨', w: 'コアラ' },
+    { k: 'キ', e: '🍄', w: 'キノコ' },
+    { k: 'ク', e: '👟', w: 'クツ' },
+    { k: 'ケ', e: '🐸', w: 'ケロケロ' },
+    { k: 'コ', e: '🥤', w: 'コップ' },
   ] },
   { chars: [
-    { k: 'サ', e: '🐟', w: 'サカナ', ws: 'さかな' },
-    { k: 'シ', e: '🚄', w: 'シンカンセン', ws: 'しんかんせん' },
-    { k: 'ス', e: '🥄', w: 'スプーン' },
+    { k: 'サ', e: '🐵', w: 'サル' },
+    { k: 'シ', e: '🦓', w: 'シマウマ' },
+    { k: 'ス', e: '🐦', w: 'スズメ' },
     { k: 'セ', e: '🧼', w: 'セッケン', ws: 'せっけん' },
     { k: 'ソ', e: '🛷', w: 'ソリ', ws: 'そり' },
   ] },
   { chars: [
-    { k: 'タ', e: '🥁', w: 'タイコ', ws: 'たいこ' },
+    { k: 'タ', e: '🚕', w: 'タクシー' },
     { k: 'チ', e: '🧀', w: 'チーズ' },
-    { k: 'ツ', e: '🌙', w: 'ツキ', ws: 'つき' },
+    { k: 'ツ', e: '🎄', w: 'ツリー' },
     { k: 'テ', e: '📺', w: 'テレビ' },
     { k: 'ト', e: '🍅', w: 'トマト' },
   ] },
   { chars: [
     { k: 'ナ', e: '🍆', w: 'ナス', ws: 'なす' },
-    { k: 'ニ', e: '🌈', w: 'ニジ', ws: 'にじ' },
+    { k: 'ニ', e: '🥕', w: 'ニンジン' },
     { k: 'ヌ', e: '🧸', w: 'ヌイグルミ', ws: 'ぬいぐるみ' },
-    { k: 'ネ', e: '🐱', w: 'ネコ', ws: 'ねこ' },
+    { k: 'ネ', e: '👔', w: 'ネクタイ' },
     { k: 'ノ', e: '📓', w: 'ノート' },
   ] },
   { chars: [
-    { k: 'ハ', e: '🌸', w: 'ハナ', ws: 'はな' },
-    { k: 'ヒ', e: '✈️', w: 'ヒコウキ', ws: 'ひこうき' },
-    { k: 'フ', e: '🚢', w: 'フネ', ws: 'ふね' },
-    { k: 'ヘ', e: '🐍', w: 'ヘビ', ws: 'へび' },
+    { k: 'ハ', e: '✂️', w: 'ハサミ' },
+    { k: 'ヒ', e: '🐑', w: 'ヒツジ' },
+    { k: 'フ', e: '🍴', w: 'フォーク' },
+    { k: 'ヘ', e: '🚁', w: 'ヘリコプター' },
     { k: 'ホ', e: '🥞', w: 'ホットケーキ' },
   ] },
   { chars: [
-    { k: 'マ', e: '🧣', w: 'マフラー' },
-    { k: 'ミ', e: '🥛', w: 'ミルク' },
+    { k: 'マ', e: '🎤', w: 'マイク' },
+    { k: 'ミ', e: '🐝', w: 'ミツバチ' },
     { k: 'ム', e: '🐛', w: 'ムシ', ws: 'むし' },
-    { k: 'メ', e: '🍈', w: 'メロン' },
+    { k: 'メ', e: '🏅', w: 'メダル' },
     { k: 'モ', e: '🍑', w: 'モモ', ws: 'もも' },
   ] },
   { chars: [
     { k: 'ヤ', e: '⛰️', w: 'ヤマ', ws: 'やま' },
     { k: 'ユ', e: '🎡', w: 'ユウエンチ', ws: 'ゆうえんち' },
-    { k: 'ヨ', e: '⛵', w: 'ヨット' },
+    { k: 'ヨ', e: '🪀', w: 'ヨーヨー' },
   ] },
   { chars: [
-    { k: 'ラ', e: '🦁', w: 'ライオン' },
-    { k: 'リ', e: '🍎', w: 'リンゴ', ws: 'りんご' },
+    { k: 'ラ', e: '🎺', w: 'ラッパ' },
+    { k: 'リ', e: '🎀', w: 'リボン' },
     { k: 'ル', e: null, w: null },  // ひらがなと同じく、2〜3歳が知っている「ル」の語が無い
     { k: 'レ', e: '🍋', w: 'レモン' },
-    { k: 'ロ', e: '🚀', w: 'ロケット' },
+    { k: 'ロ', e: '🤖', w: 'ロボット' },
   ] },
   { chars: [
-    { k: 'ワ', e: '🐊', w: 'ワニ', ws: 'わに' },
+    { k: 'ワ', e: '🐕', w: 'ワンワン' },
     { k: 'ヲ' },
     { k: 'ン' },
   ] },
@@ -537,7 +552,9 @@ const KATA_GROUPS = KATA_ROWS.map((row, i) => ({
   tabEmoji: row.chars[0].k,
   tabName: '',
   tabSpeech: row.chars[0].k,
-  color: HIRA_ROWS[i].color, // 行の色はひらがなと共通にする
+  // ひらがなと同じ色相で一段濃くする。行は対応していると分かりつつ、
+  // どちらのモードにいるかも同時に伝わるようにするため
+  color: KATA_COLORS[i],
   items: row.chars.map(c => ({
     type: 'kana',
     kana: c.k,
@@ -670,13 +687,39 @@ function speakBySynth(text, el) {
 }
 
 /* 連打の抑止。要素をまたいだ交互連打でも cancel→speak が連続しないよう、
-   要素に依らない最小間隔も設ける（音声エンジンが止まる条件を避ける）。 */
+   要素に依らない最小間隔も設ける（音声エンジンが止まる条件を避ける）。
+
+   最小間隔に満たない押下は「捨てない」で「遅らせる」。捨てると、
+   カードを押した直後にタブやモードを押したときだけ無音になり、
+   「押したら必ず鳴る」に例外ができる。遅らせれば最後に押したものが必ず鳴る。 */
 let lastEl = null;
 let lastAt = 0;
+let waiting = 0;
+let waitingEl = null; // 待機中の発話が、どの要素のものか
+
+function cancelWaiting() {
+  clearTimeout(waiting);
+  waiting = 0;
+  waitingEl = null;
+}
+
 function requestSpeak(text, el) {
   const now = Date.now();
-  if (now - lastAt < 150) return;                              // 交互連打
-  if (unlocked && el === lastEl && now - lastAt < 500) return; // 同じものの連打
+  if (unlocked && el === lastEl && now - lastAt < 500) return; // 同じものの連打は無視
+
+  const rest = 150 - (now - lastAt);
+  cancelWaiting();
+  if (rest > 0) {
+    waitingEl = el;
+    waiting = setTimeout(() => {
+      waiting = 0;
+      waitingEl = null;
+      lastEl = el;
+      lastAt = Date.now();
+      speak(text, el);
+    }, rest);
+    return;
+  }
   lastEl = el;
   lastAt = now;
   speak(text, el);
@@ -684,6 +727,7 @@ function requestSpeak(text, el) {
 
 /* 読み上げ中に離脱すると iOS の音声が固まるため、状態を戻しておく */
 function resetSpeech() {
+  cancelWaiting(); // 待機中の発話は、戻ってきた画面で鳴らさない
   stopKoe();
   if (!synth) return;
   try { synth.cancel(); } catch (e) { /* noop */ }
@@ -710,7 +754,10 @@ const modesEl = document.getElementById('modes');
 const gridEl = document.getElementById('grid');
 const tabsEl = document.getElementById('tabs');
 const cards = [];
-let armedEl = null; // いま指が触れている要素
+// いま指が触れている要素。2〜3歳は膝の上で両手・手のひらで触るため、
+// 指ごとに独立して持つ。1つで持つと、2本目が触れた時点で1本目の
+// 押下が無効になり、先に押したカードが跳ねるだけで鳴らなくなる
+const armed = new Map(); // pointerId → 要素
 
 function pop(el) {
   el.classList.remove('pop');
@@ -720,20 +767,20 @@ function pop(el) {
 
 function bindPress(el, onPress) {
   el.addEventListener('pointerdown', (e) => {
-    armedEl = el;
+    armed.set(e.pointerId, el);
     // 指が要素の外へずれても pointerup を受け取れるようにする
     try { el.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
     pop(el);
   });
 
-  el.addEventListener('pointerup', () => {
-    if (armedEl !== el) return;
-    armedEl = null;
+  el.addEventListener('pointerup', (e) => {
+    if (armed.get(e.pointerId) !== el) return;
+    armed.delete(e.pointerId);
     onPress();
   });
 
-  el.addEventListener('pointercancel', () => {
-    if (armedEl === el) armedEl = null;
+  el.addEventListener('pointercancel', (e) => {
+    if (armed.get(e.pointerId) === el) armed.delete(e.pointerId);
   });
 
   // pop を外さないと、次にこの要素へ付けるアニメーション（出現演出）が
@@ -747,6 +794,12 @@ function bindPress(el, onPress) {
     // pointerup 側の発話・再生が動いているなら、重ねて鳴らし直さない
     if (synth && (synth.speaking || synth.pending)) return;
     if (!koeAudio.paused) return;
+    // ここは iOS の解禁がこの経路でしか通らないときの最後の砦。
+    // 直前の pointerup が必ず最小間隔を更新しているため、
+    // 抑止を解いておかないと requestSpeak に必ず弾かれて保険が死ぬ
+    cancelWaiting();
+    lastAt = 0;
+    lastEl = null;
     onPress();
   });
 }
@@ -780,7 +833,7 @@ function layoutGrid(count) {
 
 function ensureCards(count) {
   if (cards.length !== count) {
-    armedEl = null;
+    armed.clear();
     gridEl.innerHTML = '';
     cards.length = 0;
     for (let i = 0; i < count; i++) {
@@ -849,7 +902,11 @@ function fillCard(card, item, color) {
 }
 
 function applyGroup(group) {
-  armedEl = null; // 中身が変わるので、押しかけの指は無効にする
+  armed.clear(); // 中身が変わるので、押しかけの指は無効にする
+  // 待機中の発話がカード宛てなら捨てる。カードは使い回すので、鳴るころには
+  // 別の言葉が載っていて、押した絵と鳴る音が食い違う。
+  // タブ宛て（この関数を呼んだ当人）まで捨てると、タブが無音になる
+  if (waitingEl && cards.indexOf(waitingEl) !== -1) cancelWaiting();
   // カードは使い回すため、中身が変われば「同じものの連打」判定を捨てる。
   // 残しておくと、行を移った直後に同じ位置を押したとき無音になる。
   lastEl = null;

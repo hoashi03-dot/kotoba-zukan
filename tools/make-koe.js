@@ -27,6 +27,23 @@ const voiceArg = args.indexOf('--voice');
 const VOICE = voiceArg >= 0 ? args[voiceArg + 1] : 'Kyoko';
 const RATE = 175; // 1分あたりの語数。小さいほどゆっくり
 
+/* say は知らない声名を渡してもエラーを返さず、既定の声で作ってしまう。
+   つまり --voice のtypoは「104件を別の声で作り直して成功と表示」になる。
+   最後の引数に --voice を置いて値が無い場合も同じ。ここで止める。 */
+function checkVoice() {
+  if (!VOICE) {
+    console.error('--voice の後に声の名前がありません');
+    process.exit(1);
+  }
+  const list = execFileSync('say', ['-v', '?'], { encoding: 'utf8' });
+  const names = list.split('\n').map(line => line.trim().split(/\s{2,}|\s+#/)[0]);
+  if (!names.some(n => n === VOICE || n.startsWith(VOICE + ' '))) {
+    console.error(`「${VOICE}」という声はこの Mac にありません。`);
+    console.error('say -v "?" で一覧を確認してください。');
+    process.exit(1);
+  }
+}
+
 /* ── index.html から単語データを取り出す ────────────────── */
 function loadData() {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -61,9 +78,9 @@ function loadPrevious() {
     const prev = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
     const byName = {}; // ファイル名 → 前回そこに入れた読み上げ文字列
     for (const [text, name] of Object.entries(prev.files || {})) byName[name] = text;
-    return { voice: prev.voice, byName };
+    return { voice: prev.voice, rate: prev.rate, byName };
   } catch {
-    return { voice: null, byName: {} };
+    return { voice: null, rate: null, byName: {} };
   }
 }
 
@@ -74,8 +91,8 @@ function synthesize(phrases, prev) {
   const files = {};
   let made = 0, skipped = 0;
 
-  // 声を変えたら全部作り直す（一部だけ声が違う状態は耳で気づきにくい）
-  const forceAll = REBUILD_ALL || prev.voice !== VOICE;
+  // 声や速さを変えたら全部作り直す（一部だけ違う状態は耳で気づきにくい）
+  const forceAll = REBUILD_ALL || prev.voice !== VOICE || prev.rate !== RATE;
 
   phrases.forEach((text, i) => {
     const name = 'w' + String(i + 1).padStart(3, '0') + '.m4a';
@@ -85,17 +102,31 @@ function synthesize(phrases, prev) {
     // 前回その名前に入れた文字列と違うなら、中身が食い違うので作り直す。
     // これを見落とすと、絵と音が入れ替わったまま誰も気づけない。
     const sameAsBefore = prev.byName[name] === text;
-    if (!forceAll && sameAsBefore && fs.existsSync(file)) { skipped++; return; }
+    // 空や途中で切れたファイルは、あるだけでは信用しない。
+    // existsSync だけで見ると、壊れたまま永久にスキップされ続ける
+    const usable = fs.existsSync(file) && fs.statSync(file).size > 1000;
+    if (!forceAll && sameAsBefore && usable) { skipped++; return; }
     execFileSync('say', ['-v', voiceName, '-r', String(RATE), '--data-format=aac', '-o', file, text]);
     made++;
   });
   return { files, made, skipped };
 }
 
+checkVoice();
+
 const modes = loadData();
 // 並び順を固定する。順番が変わると連番と中身がずれる
 const phrases = collectPhrases(modes).sort();
 const prev = loadPrevious();
+
+/* 対応表を先に消しておく。say が途中で失敗すると例外で即死し、
+   末尾の書き出しに到達しない。そのとき対応表を残したままだと、
+   「ディスクは新しい割り当て・対応表は古い割り当て」で食い違い、
+   絵と音が入れ替わる。しかも git の差分には m4a しか出ないので気づけない。
+   消しておけば、失敗時はアプリが全語を合成音声に落とすだけで済み（無音にはならない）、
+   次に実行すれば prev が空になるので全件作り直して直る。 */
+try { fs.rmSync(MANIFEST); } catch { /* 無ければよい */ }
+
 const { files, made, skipped } = synthesize(phrases, prev);
 
 // 前回の生成物のうち、今回使われないものを消す（語を減らしたとき用）
